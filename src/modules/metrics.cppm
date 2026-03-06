@@ -94,6 +94,17 @@ struct WindowedMetrics
             static_cast<double> (updateInterval.count()));
     }
 
+    void setUpdateInterval(const std::chrono::seconds &inputUpdateInterval)
+    {
+        if (inputUpdateInterval.count() < 1)
+        {
+            throw std::runtime_error("Invalid update interval");
+        }
+        updateInterval = inputUpdateInterval;
+        windowedAverageLatency.store( 
+            static_cast<double> (updateInterval.count()));
+    }   
+
     void update(const UShopImportMetrics::Packet &packet,
                 const std::chrono::microseconds &packetLatency)
     {

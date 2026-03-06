@@ -238,6 +238,9 @@ public:
         assert(mOptions);
         assert(mLogger);
 #endif
+        auto &metrics
+            = UShopImportMetrics::Metrics::MetricsSingleton::getInstance();
+        metrics.setUpdateInterval(mOptions->windowedMetricsUpdateInterval);
         if (mOptions->exportMetrics)
         {
             SPDLOG_LOGGER_INFO(mLogger, "Initializing metrics");
