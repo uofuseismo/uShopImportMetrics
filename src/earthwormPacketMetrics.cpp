@@ -14,6 +14,8 @@
 #include <boost/program_options.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/ini_parser.hpp>
+#include <opentelemetry/metrics/meter_provider.h>
+#include <opentelemetry/metrics/provider.h>
 #include "uShopImportMetrics/waveRing.hpp"
 #include "uShopImportMetrics/version.hpp"
 #include "uShopImportMetrics/packet.hpp"
@@ -25,13 +27,55 @@ using namespace UShopImportMetrics;
 namespace
 {
 
+opentelemetry::nostd::shared_ptr<opentelemetry::metrics::ObservableInstrument>
+    validPacketsReceivedCounter;
+opentelemetry::nostd::shared_ptr<opentelemetry::metrics::ObservableInstrument>
+    futurePacketsReceivedCounter;
+opentelemetry::nostd::shared_ptr<opentelemetry::metrics::ObservableInstrument>
+    expiredPacketsReceivedCounter;
+opentelemetry::nostd::shared_ptr<opentelemetry::metrics::ObservableInstrument>
+    totalPacketsReceivedCounter;
+opentelemetry::nostd::shared_ptr<opentelemetry::metrics::ObservableInstrument>
+    windowedAverageLatencyGauge;
+opentelemetry::nostd::shared_ptr<opentelemetry::metrics::ObservableInstrument>
+    windowedAverageCountsGauge;
+opentelemetry::nostd::shared_ptr<opentelemetry::metrics::ObservableInstrument>
+    windowedStdCountsGauge;
+
 std::atomic<bool> mInterrupted{false};
+
+struct OTelHTTPMetricsOptions
+{
+    std::string url{"localhost:4318"};
+    std::chrono::milliseconds exportInterval{5000};
+    std::chrono::milliseconds exportTimeOut{500};
+    std::string suffix{"/v1/metrics"};
+};
+
+std::string getOTelCollectorURL(boost::property_tree::ptree &propertyTree,
+                                const std::string &section)
+{
+    std::string result; 
+    std::string otelCollectorHost
+        = propertyTree.get<std::string> (section + ".host", "");
+    uint16_t otelCollectorPort
+        = propertyTree.get<uint16_t> (section + ".port", 4218);
+    if (!otelCollectorHost.empty())
+    {
+        result = otelCollectorHost + ":" 
+               + std::to_string(otelCollectorPort);
+    }        
+    return result; 
+}
 
 struct ProgramOptions
 {
+    OTelHTTPMetricsOptions otelHTTPMetricsOptions;
     WaveRingOptions waveRingOptions;
     std::filesystem::path logDirectory{"./"};
     std::string applicationName{"uEarthwormPacketMetrics"};
+    std::chrono::seconds windowedMetricsUpdateInterval{120};
+    std::chrono::seconds printSummary{std::chrono::minutes {15}};
     int verbosity{3};
     size_t maximumQueueSize{4096};
     bool consoleLog{true};
@@ -93,6 +137,42 @@ struct ProgramOptions
             throw std::invalid_argument(
                "General.maximumQueueSize must be positive");
         }
+
+        // Metrics
+        otelHTTPMetricsOptions.url
+            = getOTelCollectorURL(propertyTree, "OTelHTTPMetricsOptions");
+        otelHTTPMetricsOptions.suffix
+            = propertyTree.get<std::string> ("OTelHTTPMetricsOptions.suffix",
+                                             "/v1/metrics");
+        if (!otelHTTPMetricsOptions.url.empty())
+        {
+            if (!otelHTTPMetricsOptions.suffix.empty())
+            {
+                if (!otelHTTPMetricsOptions.url.ends_with("/") &&
+                    !otelHTTPMetricsOptions.suffix.starts_with("/"))
+                {
+                    otelHTTPMetricsOptions.suffix = "/"
+                                                + otelHTTPMetricsOptions.suffix;
+                }
+            }
+        }
+        if (!otelHTTPMetricsOptions.url.empty())
+        {
+            exportMetrics = true;
+            auto updateInterval
+                = static_cast<int> (windowedMetricsUpdateInterval.count());
+            updateInterval
+                = propertyTree.get<int> (
+                     "OTelTTPMetricsOptions.windowedMetricsUpdateIntervalInSeconds",
+                     updateInterval);
+            if (updateInterval <= 0)
+            {
+                throw std::invalid_argument("Metrics update interval must be non-negative");
+            }
+            windowedMetricsUpdateInterval
+                 = std::chrono::seconds {updateInterval};
+        }
+
 
     }
 
@@ -161,7 +241,73 @@ public:
         if (mOptions->exportMetrics)
         {
             SPDLOG_LOGGER_INFO(mLogger, "Initializing metrics");
+            // Need a provider from which to get a meter.  This is initialized
+            // once and should last the duration of the application.
+            auto provider 
+                = opentelemetry::metrics::Provider::GetMeterProvider();
+    
+            // Meter will be bound to application (library, module, class, etc.)
+            // so as to identify who is genreating these metrics.
+            auto meter = provider->GetMeter(mOptions->applicationName, "1.2.0");
 
+            namespace UMetrics = UShopImportMetrics::Metrics;
+            // Valid (good) packets
+            validPacketsReceivedCounter
+                = meter->CreateInt64ObservableCounter(
+                    "seismic_data.earthworm.client.packets.valid",
+                    "Number of valid data packets received from SEEDLink client.",
+                    "{packets}");
+            validPacketsReceivedCounter->AddCallback(
+                UMetrics::observeValidPacketsReceived,
+                nullptr);
+            // Future packets
+            futurePacketsReceivedCounter
+                = meter->CreateInt64ObservableCounter(
+                   "seismic_data.earthworm.client.packets.future",
+                   "Number of future packets received from SEEDLink client.",
+                   "{packets}");
+            futurePacketsReceivedCounter->AddCallback(
+                UMetrics::observeFuturePacketsReceived, nullptr);
+            // Expired packets
+            expiredPacketsReceivedCounter
+                = meter->CreateInt64ObservableCounter(
+                   "seismic_data.earthworm.client.packets.expired",
+                   "Number of expired packets received from SEEDLink client.",
+                   "{packets}");
+            expiredPacketsReceivedCounter->AddCallback(
+                UMetrics::observeExpiredPacketsReceived, nullptr);
+            // Total packets received
+            totalPacketsReceivedCounter
+                = meter->CreateInt64ObservableCounter(
+                    "seismic_data.earthworm.client.packets.all",
+                    "Total number of packets received from SEEDLink client.  This includes future and expired packets.",
+                    "{packets}");
+            totalPacketsReceivedCounter->AddCallback(
+                UMetrics::observeTotalPacketsReceived, nullptr);
+            // Windowed average latency
+            windowedAverageLatencyGauge
+                = meter->CreateDoubleObservableGauge(
+                    "seismic_data.earthworm.client.windowed.latency.average",
+                    "The windowed average latency of packets.",
+                    "{s}");
+            windowedAverageLatencyGauge->AddCallback(
+                UMetrics::observeWindowedAverageLatency, nullptr);
+            // Windowed average counts
+            windowedAverageCountsGauge
+                = meter->CreateDoubleObservableGauge(
+                    "seismic_data.earthworm.client.windowed.counts.average",
+                    "The windowed average number of counts.",
+                    "{counts}");
+            windowedAverageCountsGauge->AddCallback(
+                UMetrics::observeWindowedAverageCounts, nullptr);
+            // Windowed std of counts
+            windowedStdCountsGauge
+                = meter->CreateDoubleObservableGauge(
+                    "seismic_data.earthworm.client.windowed.counts.standard_deviaton",
+                    "The windowed standard deviation of counts.",
+                    "{counts}");
+            windowedStdCountsGauge->AddCallback(
+                UMetrics::observeWindowedStdCounts, nullptr);
         }
         SPDLOG_LOGGER_INFO(mLogger, "Creating earthworm ring reader");
         mMaximumQueueSize = mOptions->maximumQueueSize;
@@ -434,6 +580,13 @@ int main(int argc, char *argv[])
 
     // Initialize metrics
     UShopImportMetrics::Metrics::initializeMetricsSingleton();
+    if (options->exportMetrics)
+    {
+        UShopImportMetrics::Metrics::initialize(
+            options->otelHTTPMetricsOptions.url,
+            options->otelHTTPMetricsOptions.exportInterval,
+            options->otelHTTPMetricsOptions.exportTimeOut);
+    }
 
     try
     {
@@ -441,11 +594,13 @@ int main(int argc, char *argv[])
         auto process = std::make_unique<Process> (std::move(options), logger);
         SPDLOG_LOGGER_INFO(logger, "Starting metrics calculator...");
         process->start();
+        UShopImportMetrics::Metrics::cleanup();
     }
     catch (const std::exception &e)
     {
         SPDLOG_LOGGER_CRITICAL(logger, "Metrics module failed with {}",
                                std::string {e.what()});
+        UShopImportMetrics::Metrics::cleanup();
         return EXIT_FAILURE;
     }
     

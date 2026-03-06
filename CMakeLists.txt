@@ -23,7 +23,7 @@ find_package(libmseed REQUIRED)
 find_package(Boost COMPONENTS program_options REQUIRED)
 find_package(Threads REQUIRED)
 find_package(SEEDLink REQUIRED)
-find_package(opentelemetry-cpp REQUIRED)
+find_package(opentelemetry-cpp CONFIG REQUIRED COMPONENTS exporters_otlp_http)
 if (${BUILD_EW})
    find_package(Earthworm REQUIRED)
 else()
@@ -42,7 +42,9 @@ set(LIBRARY_SRC
 set(LIBRARY_MODULE_FILES
     src/modules/metrics.cppm)
 set(HEADER_FILES
-    include/uShopImportMetrics/streamIdentifier.hpp)
+    include/uShopImportMetrics/packet.hpp
+    include/uShopImportMetrics/streamIdentifier.hpp
+    include/uShopImportMetrics/version.hpp)
 if (${Earthworm_FOUND})
    list(APPEND LIBRARY_SRC src/traceBuf2.cpp src/waveRing.cpp)
    list(APPEND HEADER_FILES include/uShopImportMetrics/traceBuf2.hpp
@@ -77,8 +79,7 @@ target_include_directories(libuShopImportMetrics
                            PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
                           )
 target_link_libraries(libuShopImportMetrics
-                      PRIVATE opentelemetry-cpp::otlp_http_log_record_exporter
-                              opentelemetry-cpp::otlp_http_metric_exporter
+                      PRIVATE opentelemetry-cpp::otlp_http_metric_exporter
                               spdlog::spdlog_header_only
                               Boost::headers
                               SEEDLink::SEEDLink
@@ -95,6 +96,7 @@ if (${Earthworm_FOUND})
                          CXX_EXTENSIONS NO) 
    target_link_libraries(uEarthwormPacketMetrics
                          PRIVATE uShopImportMetrics::libuShopImportMetrics
+                                 opentelemetry-cpp::otlp_http_metric_exporter
                                  Boost::headers Boost::program_options)
    target_include_directories(uEarthwormPacketMetrics
                               PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>
