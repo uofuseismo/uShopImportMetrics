@@ -1,0 +1,506 @@
+#include <iostream>
+#include <string>
+#include <algorithm>
+#include <numeric>
+#include <vector>
+#include <chrono>
+#include <cmath>
+#ifndef NDEBUG
+#include <cassert>
+#endif
+#include "uShopImportMetrics/packet.hpp"
+#include "uShopImportMetrics/streamIdentifier.hpp"
+#ifdef WITH_EARTHWORM
+#include "uShopImportMetrics/traceBuf2.hpp"
+#endif
+
+using namespace UShopImportMetrics;
+
+class Packet::PacketImpl
+{
+public:
+    [[nodiscard]] int size() const
+    {   
+        if (mDataType == Packet::DataType::Unknown)
+        {
+            return 0;
+        }
+        else if (mDataType == Packet::DataType::Integer32)
+        {   
+            return static_cast<int> (mInteger32Data.size());
+        }   
+        else if (mDataType == Packet::DataType::Float)
+        {
+            return static_cast<int> (mFloatData.size());
+        }
+        else if (mDataType == Packet::DataType::Double)
+        {
+            return static_cast<int> (mDoubleData.size());
+        }
+        else if (mDataType == Packet::DataType::Integer64)
+        {   
+            return static_cast<int> (mInteger64Data.size());
+        }
+#ifndef NDEBUG
+        assert(false);
+#else
+        throw std::runtime_error("Unhandled data type in packet impl size");
+#endif
+    }
+    void clearData()
+    {
+        mInteger32Data.clear();
+        mInteger64Data.clear();
+        mFloatData.clear();
+        mDoubleData.clear();
+        mDataType = Packet::DataType::Unknown;
+    }
+    void setData(std::vector<int> &&data)
+    {
+        if (data.empty()){return;}
+        clearData();
+        mInteger32Data = std::move(data);
+        mDataType = Packet::DataType::Integer32;
+        updateEndTime();
+    }
+    void setData(std::vector<float> &&data)
+    {
+        if (data.empty()){return;}
+        clearData();
+        mFloatData = std::move(data);
+        mDataType = Packet::DataType::Float;
+        updateEndTime();
+    }
+    void setData(std::vector<double> &&data)
+    {
+        if (data.empty()){return;}
+        clearData();
+        mDoubleData = std::move(data);
+        mDataType = Packet::DataType::Double;
+        updateEndTime();
+    }
+    void setData(std::vector<int64_t> &&data)
+    {
+        if (data.empty()){return;}
+        clearData();
+        mInteger64Data = std::move(data);
+        mDataType = Packet::DataType::Integer64;
+        updateEndTime();
+    }
+    void updateEndTime()
+    {
+        mEndTimeMicroSeconds = mStartTimeMicroSeconds;
+        auto nSamples = size();  
+        if (nSamples > 0 && mSamplingRate > 0)
+        {
+            auto traceDuration
+                = std::round( ((nSamples - 1)/mSamplingRate)*1000000 );
+            auto iTraceDuration = static_cast<int64_t> (traceDuration);
+            std::chrono::microseconds traceDurationMuS{iTraceDuration};
+            mEndTimeMicroSeconds = mStartTimeMicroSeconds + traceDurationMuS;
+        }
+    }
+    StreamIdentifier mIdentifier;
+    std::vector<int> mInteger32Data;
+    std::vector<int64_t> mInteger64Data;
+    std::vector<float> mFloatData;
+    std::vector<double> mDoubleData;
+    std::chrono::microseconds mStartTimeMicroSeconds{0};
+    std::chrono::microseconds mEndTimeMicroSeconds{0};
+    double mSamplingRate{0};
+    Packet::DataType mDataType{Packet::DataType::Unknown};
+    bool mHasIdentifier = false;
+};
+
+/// Clear class
+void Packet::clear() noexcept
+{
+    pImpl->clearData();
+    pImpl->mIdentifier.clear();
+    pImpl->mHasIdentifier = false;
+    constexpr std::chrono::microseconds zeroMuS{0};
+    pImpl->mStartTimeMicroSeconds = zeroMuS;
+    pImpl->mEndTimeMicroSeconds = zeroMuS;
+    pImpl->mSamplingRate = 0;
+}
+
+/// Constructor
+Packet::Packet() :
+    pImpl(std::make_unique<PacketImpl> ())
+{
+}
+
+/// Construct from tracebuf2
+#ifdef WITH_EARTHWORM
+Packet::Packet(const TraceBuf2 &traceBuf2) :
+    pImpl(std::make_unique<PacketImpl> ())
+{
+    StreamIdentifier identifier;
+    identifier.setNetwork(traceBuf2.getNetwork());
+    identifier.setStation(traceBuf2.getStation());
+    identifier.setChannel(traceBuf2.getChannel());
+    auto locationCode = traceBuf2.getLocationCode();
+    if (!locationCode.empty())
+    {
+        identifier.setLocationCode(locationCode);
+    }
+    else
+    {
+        identifier.setLocationCode("--");
+    }
+    setStreamIdentifier(std::move(identifier));
+
+    setSamplingRate(traceBuf2.getSamplingRate());
+    setStartTime(traceBuf2.getStartTime());
+
+    auto dataType = traceBuf2.getDataType();
+    if (dataType == TraceBuf2::DataType::Integer32)
+    {
+        auto x = traceBuf2.getData<int32_t>();
+        setData(std::move(x));
+    }
+    else if (dataType == TraceBuf2::DataType::Integer64)
+    {   
+        auto x = traceBuf2.getData<int64_t>();
+        setData(std::move(x));
+    }   
+    else if (dataType == TraceBuf2::DataType::Double)
+    {
+        auto x = traceBuf2.getData<double>();
+        setData(std::move(x));
+    }
+    else if (dataType == TraceBuf2::DataType::Float)
+    {
+        auto x = traceBuf2.getData<float>();
+        setData(std::move(x));
+    }
+    else if (dataType == TraceBuf2::DataType::Integer16)
+    {
+        auto x = traceBuf2.getData<int32_t>(); // Promote it
+        setData(std::move(x));
+    }
+    else
+    {
+        throw std::runtime_error("Unhandled precision");
+    }
+}
+#endif
+
+/// Copy constructor
+Packet::Packet(const Packet &packet)
+{
+    *this = packet;
+}
+
+/// Move constructor
+Packet::Packet(Packet &&packet) noexcept
+{
+    *this = std::move(packet);
+}
+
+/// Copy assignment
+Packet& Packet::operator=(const Packet &packet)
+{
+    if (&packet == this){return *this;}
+    pImpl = std::make_unique<PacketImpl> (*packet.pImpl);
+    return *this;
+}
+
+/// Move assignment
+Packet& Packet::operator=(Packet &&packet) noexcept
+{
+    if (&packet == this){return *this;}
+    pImpl = std::move(packet.pImpl);
+    return *this;
+}
+
+/// Destructor
+Packet::~Packet() = default;
+
+/// Identifier
+void Packet::setStreamIdentifier(const StreamIdentifier &identifier)
+{
+    StreamIdentifier copy{identifier};
+    setStreamIdentifier(std::move(copy));
+}
+
+void Packet::setStreamIdentifier(StreamIdentifier &&identifier)
+{
+    if (!identifier.hasNetwork())
+    { 
+        throw std::invalid_argument("Network not set");
+    }
+    if (!identifier.hasStation())
+    {
+        throw std::invalid_argument("Station not set");
+    }
+    if (!identifier.hasChannel())
+    {
+        throw std::invalid_argument("Channel not set");
+    }
+    if (!identifier.hasLocationCode())
+    {
+        throw std::invalid_argument("Location code not set");
+    }
+    pImpl->mIdentifier = std::move(identifier);
+    pImpl->mHasIdentifier = true;
+}
+
+const StreamIdentifier &Packet::getStreamIdentifierReference() const
+{
+    if (!hasStreamIdentifier()){throw std::runtime_error("Identifier not set");}
+    return *&pImpl->mIdentifier;
+}
+
+StreamIdentifier Packet::getStreamIdentifier() const
+{
+    if (!hasStreamIdentifier()){throw std::runtime_error("Identifier not set");}
+    return pImpl->mIdentifier;
+}
+
+bool Packet::hasStreamIdentifier() const noexcept
+{
+    return pImpl->mHasIdentifier;
+}
+
+/// Sampling rate
+void Packet::setSamplingRate(const double samplingRate) 
+{
+    if (samplingRate <= 0)
+    {
+        throw std::invalid_argument("samplingRate = "
+                                  + std::to_string(samplingRate)
+                                  + " must be positive");
+    }
+    pImpl->mSamplingRate = samplingRate;
+    pImpl->updateEndTime();
+}
+
+double Packet::getSamplingRate() const
+{
+    if (!hasSamplingRate()){throw std::runtime_error("Sampling rate not set");}
+    return pImpl->mSamplingRate;
+}
+
+bool Packet::hasSamplingRate() const noexcept
+{
+    return (pImpl->mSamplingRate > 0);     
+}
+
+/// Number of samples
+int Packet::getNumberOfSamples() const noexcept
+{
+    return pImpl->size();
+}
+
+/// Start time
+void Packet::setStartTime(const double startTime) noexcept
+{
+    auto iStartTimeMuS = static_cast<int64_t> (std::round(startTime*1.e6));
+    std::chrono::microseconds startTimeMuS{iStartTimeMuS};
+    setStartTime(startTimeMuS);
+}
+
+void Packet::setStartTime(
+    const std::chrono::microseconds &startTime) noexcept
+{
+    pImpl->mStartTimeMicroSeconds = startTime;
+    pImpl->updateEndTime();
+}
+
+std::chrono::microseconds Packet::getStartTime() const noexcept
+{
+    return pImpl->mStartTimeMicroSeconds;
+}
+
+std::chrono::microseconds Packet::getEndTime() const
+{
+    if (!hasSamplingRate())
+    {   
+        throw std::runtime_error("Sampling rate not set");
+    }   
+    if (getNumberOfSamples() < 1)
+    {   
+        throw std::runtime_error("No samples in signal");
+    }   
+    return pImpl->mEndTimeMicroSeconds;
+}
+
+/// Sets the data
+template<typename U>
+void Packet::setData(std::vector<U> &&x)
+{
+    pImpl->setData(std::move(x));
+    pImpl->updateEndTime();
+}
+
+template<typename U>
+void Packet::setData(const std::vector<U> &x)
+{
+    auto xWork = x;
+    setData(std::move(xWork));
+}
+
+template<typename U>
+void Packet::setData(const int nSamples, const U *x)
+{
+    // Invalid
+    if (nSamples < 0){throw std::invalid_argument("nSamples not positive");}
+    if (x == nullptr){throw std::invalid_argument("x is NULL");}
+    std::vector<U> data(nSamples);
+    std::copy(x, x + nSamples, data.begin());
+    setData(std::move(data));
+}
+
+/// Gets the data
+template<typename U>
+std::vector<U> Packet::getData() const noexcept
+{
+    std::vector<U> result;
+    auto nSamples = getNumberOfSamples();
+    if (nSamples < 1){return result;}
+    result.resize(nSamples);
+    auto dataType = getDataType();
+    if (dataType == DataType::Integer32)
+    {   
+        std::copy(pImpl->mInteger32Data.begin(),
+                  pImpl->mInteger32Data.end(),
+                  result.begin());
+    }   
+    else if (dataType == DataType::Float)
+    {   
+        std::copy(pImpl->mFloatData.begin(),
+                  pImpl->mFloatData.end(),
+                  result.begin());
+    }   
+    else if (dataType == DataType::Double)
+    {   
+        std::copy(pImpl->mDoubleData.begin(),
+                  pImpl->mDoubleData.end(),
+                  result.begin());
+    }   
+    else if (dataType == DataType::Integer64)
+    {   
+        std::copy(pImpl->mInteger64Data.begin(),
+                  pImpl->mInteger64Data.end(),
+                  result.begin());
+    }   
+    else
+    {   
+#ifndef NDEBUG
+        assert(false);
+#endif
+        constexpr U zero{0};
+        std::fill(result.begin(), result.end(), zero); 
+    }   
+    return result;
+}
+
+const void* Packet::getDataPointer() const noexcept
+{
+    if (getNumberOfSamples() < 1){return nullptr;}
+    auto dataType = getDataType();
+    if (dataType == DataType::Integer32)
+    {   
+        return pImpl->mInteger32Data.data();
+    }   
+    else if (dataType == DataType::Float)
+    {   
+        return pImpl->mFloatData.data();
+    }   
+    else if (dataType == DataType::Double)
+    {   
+        return pImpl->mDoubleData.data();
+    }   
+    else if (dataType == DataType::Integer64)
+    {   
+        return pImpl->mInteger64Data.data();
+    }   
+    else if (dataType  == DataType::Unknown)
+    {   
+        return nullptr;
+    }   
+#ifndef NDEBUG
+    else 
+    {   
+        assert(false);
+    }   
+#endif
+    return nullptr;
+}
+
+/// Data type
+Packet::DataType Packet::getDataType() const noexcept
+{
+    return pImpl->mDataType;
+}
+
+/// 
+std::pair<double, double> UShopImportMetrics::computeSumAndSumSquared(
+    const Packet &packet)
+{
+    constexpr double zero{0};
+    double sum{0};
+    double sumSquared{0};
+    auto nSamples = packet.getNumberOfSamples();
+    if (packet.getDataType() == Packet::DataType::Integer32)
+    {
+        const auto *data
+            = reinterpret_cast<const int *> (packet.getDataPointer()); 
+        sum = std::accumulate(data, data + nSamples, zero); 
+        sumSquared = std::inner_product(data, data + nSamples, data, zero);
+    }
+    else if (packet.getDataType() == Packet::DataType::Double)
+    {   
+        const auto *data
+            = reinterpret_cast<const double *> (packet.getDataPointer()); 
+        sum = std::accumulate(data, data + nSamples, zero); 
+        sumSquared = std::inner_product(data, data + nSamples, data, zero);
+    }
+    else if (packet.getDataType() == Packet::DataType::Float)
+    {
+        const auto *data
+            = reinterpret_cast<const float *> (packet.getDataPointer());
+        sum = std::accumulate(data, data + nSamples, zero);
+        sumSquared = std::inner_product(data, data + nSamples, data, zero);
+    }
+    else if (packet.getDataType() == Packet::DataType::Integer64)
+    {
+        const auto *data
+            = reinterpret_cast<const int64_t *> (packet.getDataPointer());
+        sum = std::accumulate(data, data + nSamples, zero);
+        sumSquared = std::inner_product(data, data + nSamples, data, zero);
+    }
+    else
+    {
+        if (packet.getDataType() != Packet::DataType::Unknown)
+        {
+            throw std::invalid_argument("Unhandled data type");
+        }
+    }
+    return std::pair {sum, sumSquared};
+}
+
+///--------------------------------------------------------------------------///
+///                               Template Instantiation                     ///
+///--------------------------------------------------------------------------///
+template void UShopImportMetrics::Packet::setData(const std::vector<double> &);
+template void UShopImportMetrics::Packet::setData(const std::vector<float> &);
+template void UShopImportMetrics::Packet::setData(const std::vector<int> &);
+template void UShopImportMetrics::Packet::setData(const std::vector<int64_t> &);
+
+template void UShopImportMetrics::Packet::setData(std::vector<double> &&);
+template void UShopImportMetrics::Packet::setData(std::vector<float> &&);
+template void UShopImportMetrics::Packet::setData(std::vector<int> &&);
+template void UShopImportMetrics::Packet::setData(std::vector<int64_t> &&);
+
+template void UShopImportMetrics::Packet::setData(const int, const double *);
+template void UShopImportMetrics::Packet::setData(const int, const float *);
+template void UShopImportMetrics::Packet::setData(const int, const int *);
+template void UShopImportMetrics::Packet::setData(const int, const int64_t *);
+
+template std::vector<int> UShopImportMetrics::Packet::getData<int> () const noexcept;
+template std::vector<double> UShopImportMetrics::Packet::getData<double> () const noexcept;
+template std::vector<float> UShopImportMetrics::Packet::getData<float> () const noexcept;
+template std::vector<int64_t> UShopImportMetrics::Packet::getData<int64_t> () const noexcept;
+
