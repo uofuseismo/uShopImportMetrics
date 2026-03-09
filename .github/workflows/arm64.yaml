@@ -14,8 +14,6 @@ jobs:
         BUILD_TARGET: [Release]
     steps:
       - uses: actions/checkout@v6
-        with:
-          repository: $${{ github.repository }}
       - uses: actions/download-artifact@v5
         with:
           path: /artifacts/         

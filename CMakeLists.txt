@@ -85,6 +85,7 @@ target_link_libraries(libuShopImportMetrics
                               SEEDLink::SEEDLink
                               mseed::mseed
                               Threads::Threads)
+set(BINARIES "")
 if (${Earthworm_FOUND})
    target_link_libraries(libuShopImportMetrics PRIVATE Earthworm::util Earthworm::mt)
    target_compile_definitions(libuShopImportMetrics PRIVATE WITH_EARTHWORM)
@@ -101,6 +102,7 @@ if (${Earthworm_FOUND})
    target_include_directories(uEarthwormPacketMetrics
                               PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>
                               PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>)
+   set(BINARIES ${BINARIES} uEarthwormPacketMetrics)
 endif()
 
 ##########################################################################################
@@ -128,4 +130,60 @@ if (PROJECT_IS_TOP_LEVEL AND ${BUILD_TESTS})
    add_test(NAME unitTests
             COMMAND unitTests)
 endif()
+
+##########################################################################################
+#                                      Installation                                      #
+##########################################################################################
+include(CMakePackageConfigHelpers)
+configure_file(${PROJECT_SOURCE_DIR}/cmake/uShopImportMetrics.cmake.in
+               uShopImportMetricsConfig.cmake @ONLY)
+write_basic_package_version_file(
+   uShopImportMetricsConfigVersion.cmake
+   VERSION ${PACKAGE_VERSION}
+   COMPATIBILITY AnyNewerVersion)
+
+include(GNUInstallDirs)
+install(TARGETS libuShopImportMetrics
+        EXPORT ${PROJECT_NAME}Targets
+        FILE_SET HEADERS
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+        FILE_SET CXX_MODULES
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        COMPONENT libraries)
+install(TARGETS ${BINARIES}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        COMPONENT applications)
+export(EXPORT ${PROJECT_NAME}Targets
+       FILE "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Targets.cmake")
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/uShopImportMetricsConfig.cmake
+              ${CMAKE_CURRENT_BINARY_DIR}/uShopImportMetricsConfigVersion.cmake
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/uEarthwormPacketMetrics)
+
+##########################################################################################
+#                                       Packaging                                        #
+##########################################################################################
+
+include(CPackComponent)
+set(CPACK_PACKAGE_NAME ${PROJECT_NAME})
+set(CPACK_PACKAGE_VENDOR "UUSS")
+set(CPACK_PACKAGE_CONTACT "ben.baker@utah.edu")
+set(CPACK_PACKAGE_LICENSE "MIT")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Tabulates metrics on data packets imported into Earthworm or via SEEDLink.")
+set(CPACK_PACKAGE_INSTALL_DIRECTORY ${CPACK_PACKAGE_NAME})
+set(CPACK_VERBATIM_VARIABLES YES)
+set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
+set(CPACK_PACKAGE_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
+set(CPACK_PACKAGE_VERSION_MINOR ${PROJECT_VERSION_MINOR})
+set(CPACK_PACKAGE_VERSION_PATCH ${PROJECT_VERSION_PATCH})
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE")
+cpack_add_component(libraries
+                    DISPLAY_NAME "uShopImportMetrics common libraries")
+cpack_add_component(headers
+                    DISPLAY_NAME "uShopImportMetrics library header files"
+                    DEPENDS libraries)
+cpack_add_component(applications
+                    DISPLAY_NAME "uShopImportMetrics applications"
+                    DEPENDS libraries)
 
