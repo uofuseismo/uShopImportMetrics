@@ -13,6 +13,12 @@ jobs:
       matrix:
         BUILD_TARGET: [Release]
     steps:
+      - uses: actions/checkout@v6
+        with:
+          repository: $${{ github.repository }}
+      - uses: actions/download-artifact@v5
+        with:
+          path: /artifacts/         
       - name: Build prerequisites
         env:
           EW_HOME: /opt/earthworm
@@ -94,13 +100,7 @@ jobs:
           sudo cmake --install build
           cd ../
           rm -rf opentelemetry-cpp-1.25.0
-      - name: Build project
-        - uses: actions/checkout@v6
-          with:
-            repository: $${{ github.repository }}
-        - uses: actions/download-artifact@v5
-          with:
-            path: /artifacts/ 
+      - name: Build project        
         run: |
           mkdir -p /artifacts
           pwd
