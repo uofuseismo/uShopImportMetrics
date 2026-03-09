@@ -36,8 +36,8 @@ Usage requires an initialization file, say metrics.ini, of the form
     
 
     [OTelTTPMetricsOptions]
-    # The name of the host running the OTel collector
-    url=localhost
+    # The endpoitn of the OTel collector
+    url=localhost:4318
     # The suffix to append to the host name.  Changing this is not recommended.
     #suffix=/v1/metrics
     # Nominally, the windowed metrics are computed every 2 minutes but this can be adjusted.
