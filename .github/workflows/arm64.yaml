@@ -118,7 +118,7 @@ jobs:
           ls /opt/earthworm/
           cmake -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release -DBUILD_EW=ON -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic" 
           cmake --build build
-          ctest --test-dir=build
+          ctest --test-dir build
           sudo cmake --install build
           cd build
           cpack -B artifacts TGZ

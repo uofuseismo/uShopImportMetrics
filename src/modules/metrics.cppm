@@ -123,7 +123,7 @@ struct WindowedMetrics
            = UShopImportMetrics::computeSumAndSumSquared(packet);
         // Update sums
         {
-        std::scoped_lock{mMutex};
+        std::scoped_lock lock{mMutex};
         sum = sum + packetSum;
         sumSquared = sumSquared + packetSum2;
         samplesCount = samplesCount + nSamples;
