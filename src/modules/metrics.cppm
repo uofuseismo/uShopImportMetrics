@@ -1,5 +1,6 @@
 module;
 
+#include <iostream>
 #include <mutex>
 #include <atomic>
 #include <string>
@@ -37,6 +38,8 @@ namespace UShopImportMetrics::Metrics
 
 #define UPDATE_INTERVAL_SECONDS 120
 
+bool metricsInitialized{false};
+
 export void initialize(
     const std::string &exporterURL,
     const std::chrono::milliseconds &exportInterval = std::chrono::seconds {5},
@@ -73,12 +76,17 @@ export void initialize(
         provider(std::move(metricsProvider));
 
     otel::sdk::metrics::Provider::SetMeterProvider(provider);
+    metricsInitialized = true;
 }
 
 export void cleanup()
 {
-    std::shared_ptr<opentelemetry::metrics::MeterProvider> none;
-    opentelemetry::sdk::metrics::Provider::SetMeterProvider(none);
+    if (metricsInitialized)
+    {
+        std::shared_ptr<opentelemetry::metrics::MeterProvider> none;
+        opentelemetry::sdk::metrics::Provider::SetMeterProvider(none);
+        metricsInitialized = false;
+    }
 }
 
 struct WindowedMetrics

@@ -14,6 +14,7 @@
 #include <boost/program_options.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/ini_parser.hpp>
+#include <boost/asio/ip/host_name.hpp>
 #include <opentelemetry/metrics/meter_provider.h>
 #include <opentelemetry/metrics/provider.h>
 #include "uShopImportMetrics/waveRing.hpp"
@@ -74,6 +75,7 @@ struct ProgramOptions
     WaveRingOptions waveRingOptions;
     std::filesystem::path logDirectory{"./"};
     std::string applicationName{"uEarthwormPacketMetrics"};
+    std::string otelAttributes;
     std::chrono::seconds windowedMetricsUpdateInterval{120};
     std::chrono::seconds printSummary{std::chrono::minutes {15}};
     int verbosity{3};
@@ -91,21 +93,17 @@ struct ProgramOptions
         boost::property_tree::ptree propertyTree;
         boost::property_tree::ini_parser::read_ini(iniFile, propertyTree);
 
-        auto moduleName
-            = propertyTree.get<std::string> ("Earthworm.moduleName",
-                                             "MOD_EARTHWORM_METRICS");
-        if (moduleName.empty())
+        // Application name
+        applicationName
+            = propertyTree.get<std::string> ("General.applicationName",
+                                             applicationName);
+        if (applicationName.empty())
         {
-            throw std::invalid_argument("Earthworm.moduleName not specified");
-        }
-        auto ringName
-            = propertyTree.get<std::string> ("Earthworm.ringName", "WAVE_RING");
-        if (ringName.empty())
-        {
-            throw std::invalid_argument("Earthworm.ringName not specified");
-        }
-        waveRingOptions.moduleName = moduleName;
-        waveRingOptions.ringName = ringName;
+            applicationName = "uEarthwormPacketMetrics";
+        }   
+        verbosity
+            = propertyTree.get<int> ("General.verbosity", verbosity);
+
 
         auto logDirectoryName
             = propertyTree.get_optional<std::string> ("General.logDirectory");
@@ -138,6 +136,23 @@ struct ProgramOptions
                "General.maximumQueueSize must be positive");
         }
 
+        // Earthworm
+        auto moduleName
+            = propertyTree.get<std::string> ("Earthworm.moduleName",
+                                             "MOD_EARTHWORM_METRICS");
+        if (moduleName.empty())
+        {   
+            throw std::invalid_argument("Earthworm.moduleName not specified");
+        }   
+        auto ringName
+            = propertyTree.get<std::string> ("Earthworm.ringName", "WAVE_RING");
+        if (ringName.empty())
+        {
+            throw std::invalid_argument("Earthworm.ringName not specified");
+        }
+        waveRingOptions.moduleName = moduleName;
+        waveRingOptions.ringName = ringName;
+
         // Metrics
         otelHTTPMetricsOptions.url
             = getOTelCollectorURL(propertyTree, "OTelHTTPMetricsOptions");
@@ -154,6 +169,8 @@ struct ProgramOptions
                     otelHTTPMetricsOptions.suffix = "/"
                                                 + otelHTTPMetricsOptions.suffix;
                 }
+                otelHTTPMetricsOptions.url = otelHTTPMetricsOptions.url
+                                           + otelHTTPMetricsOptions.suffix;
             }
         }
         if (!otelHTTPMetricsOptions.url.empty())
@@ -172,8 +189,20 @@ struct ProgramOptions
             windowedMetricsUpdateInterval
                  = std::chrono::seconds {updateInterval};
         }
-
-
+        std::transform(applicationName.begin(),
+                       applicationName.end(),
+                       applicationName.begin(), 
+                       ::tolower);
+        auto ringNameLower = waveRingOptions.ringName;
+        std::transform(ringNameLower.begin(), ringNameLower.end(),
+                       ringNameLower.begin(), ::tolower);
+        if (!ringNameLower.empty())
+        {
+            otelAttributes = "ring=" + ringNameLower;
+        }
+        otelAttributes
+            = propertyTree.get<std::string> (
+                 "OTelTTPMetricsOptions.resourceAttributes", otelAttributes);
     }
 
     [[nodiscard]] static std::optional<std::filesystem::path>
@@ -238,12 +267,20 @@ public:
         assert(mOptions);
         assert(mLogger);
 #endif
-        auto &metrics
-            = UShopImportMetrics::Metrics::MetricsSingleton::getInstance();
-        metrics.setUpdateInterval(mOptions->windowedMetricsUpdateInterval);
+        SPDLOG_LOGGER_INFO(mLogger, "Creating earthworm ring reader");
+        mMaximumQueueSize = mOptions->maximumQueueSize;
+        mRingReader
+            = std::make_unique<WaveRing>
+                 (mOptions->waveRingOptions, 
+                  mAddPacketCallbackFunction,
+                  mLogger);
+
         if (mOptions->exportMetrics)
         {
             SPDLOG_LOGGER_INFO(mLogger, "Initializing metrics");
+            auto &metrics
+                = UShopImportMetrics::Metrics::MetricsSingleton::getInstance();
+            metrics.setUpdateInterval(mOptions->windowedMetricsUpdateInterval);
             // Need a provider from which to get a meter.  This is initialized
             // once and should last the duration of the application.
             auto provider 
@@ -257,16 +294,15 @@ public:
             // Valid (good) packets
             validPacketsReceivedCounter
                 = meter->CreateInt64ObservableCounter(
-                    "seismic_data.earthworm.client.packets.valid",
+                    "earthworm.ring_packet_metrics.client.packets.valid",
                     "Number of valid data packets received from SEEDLink client.",
                     "{packets}");
             validPacketsReceivedCounter->AddCallback(
-                UMetrics::observeValidPacketsReceived,
-                nullptr);
+                UMetrics::observeValidPacketsReceived, nullptr);
             // Future packets
             futurePacketsReceivedCounter
                 = meter->CreateInt64ObservableCounter(
-                   "seismic_data.earthworm.client.packets.future",
+                   "earthworm.ring_packet_metrics.client.packets.future",
                    "Number of future packets received from SEEDLink client.",
                    "{packets}");
             futurePacketsReceivedCounter->AddCallback(
@@ -274,15 +310,15 @@ public:
             // Expired packets
             expiredPacketsReceivedCounter
                 = meter->CreateInt64ObservableCounter(
-                   "seismic_data.earthworm.client.packets.expired",
-                   "Number of expired packets received from SEEDLink client.",
-                   "{packets}");
+                    "earthworm.ring_packet_metrics.packets.expired",
+                    "Number of expired packets received from SEEDLink client.",
+                    "{packets}");
             expiredPacketsReceivedCounter->AddCallback(
                 UMetrics::observeExpiredPacketsReceived, nullptr);
             // Total packets received
             totalPacketsReceivedCounter
                 = meter->CreateInt64ObservableCounter(
-                    "seismic_data.earthworm.client.packets.all",
+                    "earthworm.ring_packet_metrics.packets.all",
                     "Total number of packets received from SEEDLink client.  This includes future and expired packets.",
                     "{packets}");
             totalPacketsReceivedCounter->AddCallback(
@@ -290,7 +326,7 @@ public:
             // Windowed average latency
             windowedAverageLatencyGauge
                 = meter->CreateDoubleObservableGauge(
-                    "seismic_data.earthworm.client.windowed.latency.average",
+                    "earthworm.ring_packet_metrics.windowed.latency.average",
                     "The windowed average latency of packets.",
                     "{s}");
             windowedAverageLatencyGauge->AddCallback(
@@ -298,7 +334,7 @@ public:
             // Windowed average counts
             windowedAverageCountsGauge
                 = meter->CreateDoubleObservableGauge(
-                    "seismic_data.earthworm.client.windowed.counts.average",
+                    "earthworm.ring_packet_metrics.windowed.counts.average",
                     "The windowed average number of counts.",
                     "{counts}");
             windowedAverageCountsGauge->AddCallback(
@@ -306,19 +342,12 @@ public:
             // Windowed std of counts
             windowedStdCountsGauge
                 = meter->CreateDoubleObservableGauge(
-                    "seismic_data.earthworm.client.windowed.counts.standard_deviaton",
+                    "earthworm.ring_packet_metrics.windowed.counts.standard_deviaton",
                     "The windowed standard deviation of counts.",
                     "{counts}");
             windowedStdCountsGauge->AddCallback(
                 UMetrics::observeWindowedStdCounts, nullptr);
         }
-        SPDLOG_LOGGER_INFO(mLogger, "Creating earthworm ring reader");
-        mMaximumQueueSize = mOptions->maximumQueueSize;
-        mRingReader
-            = std::make_unique<WaveRing>
-                 (mOptions->waveRingOptions, 
-                  mAddPacketCallbackFunction,
-                  mLogger);
     }
 
     ~Process()
@@ -582,6 +611,29 @@ int main(int argc, char *argv[])
     }
 
     // Initialize metrics
+    if (std::getenv("OTEL_SERVICE_NAME") == nullptr)
+    {
+        SPDLOG_LOGGER_INFO(logger,
+                           "Setting OTEL_SERVICE_NAME to {}",
+                           options->applicationName); 
+        constexpr int overwrite{1};
+        setenv("OTEL_SERVICE_NAME",
+               options->applicationName.c_str(),
+               overwrite);
+    }
+    if (std::getenv("OTEL_RESOURCE_ATTRIBUTES") == nullptr)
+    {
+        if (!options->otelAttributes.empty())
+        {
+            SPDLOG_LOGGER_INFO(logger,
+                               "Setting OTEL_RESOURCE_ATTRIBUTES to {}",
+                               options->otelAttributes);
+            constexpr int overwrite{1};
+            setenv("OTEL_RESOURCE_ATTRIBUTES",
+                   options->otelAttributes.c_str(),
+                   overwrite);
+        }
+    }
     UShopImportMetrics::Metrics::initializeMetricsSingleton();
     if (options->exportMetrics)
     {

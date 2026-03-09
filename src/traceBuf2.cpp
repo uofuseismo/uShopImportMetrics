@@ -281,13 +281,13 @@ TraceBuf2 unpackEarthwormMessage(const char *message, const size_t messageLength
     // Finally unpack the data
     if (!swap)
     {
-        constexpr bool swapPass = false;
-        auto pinno        = ::unpack<int>(&message[0],      swapPass);
-        auto nsamp        = ::unpack<int>(&message[4],      swapPass);
-        auto startTime    = ::unpack<double>(&message[8],   swapPass);
-        //auto endTime    = ::unpack<double>(&message[16],  swapPass);
-        auto samplingRate = ::unpack<double>(&message[24],  swapPass);
-        auto quality      = ::unpack<int16_t>(&message[60], swapPass);
+        constexpr bool swapPass{false};
+        auto pinno        = ::unpack<int> (&message[0],      swapPass);
+        auto nsamp        = ::unpack<int> (&message[4],      swapPass);
+        auto startTime    = ::unpack<double> (&message[8],   swapPass);
+        //auto endTime    = ::unpack<double> (&message[16],  swapPass);
+        auto samplingRate = ::unpack<double> (&message[24],  swapPass);
+        auto quality      = ::unpack<int16_t> (&message[60], swapPass);
         result.setPinNumber(pinno);
         result.setStartTime(startTime);
         result.setSamplingRate(samplingRate);
@@ -336,7 +336,7 @@ TraceBuf2 unpackEarthwormMessage(const char *message, const size_t messageLength
     }
     else
     {
-        constexpr bool swapPass = true;
+        constexpr bool swapPass{true};
         auto pinno        = unpack<int>(&message[0],      swapPass);
         auto nsamp        = unpack<int>(&message[4],      swapPass);
         auto startTime    = unpack<double>(&message[8],   swapPass);

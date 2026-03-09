@@ -82,9 +82,12 @@ public:
 
     void stop()
     {
-        SPDLOG_LOGGER_INFO(mLogger, "Ending Earthworm acquisition");
-        mAcquire.store(false);
-        std::this_thread::sleep_for(std::chrono::milliseconds {30});
+        if (mAcquire.load())
+        {
+            SPDLOG_LOGGER_INFO(mLogger, "Ending Earthworm acquisition");
+            mAcquire.store(false);
+            std::this_thread::sleep_for(std::chrono::milliseconds {30});
+        }
         disconnect();
     }
 
