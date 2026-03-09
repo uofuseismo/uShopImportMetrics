@@ -97,7 +97,7 @@ jobs:
           sudo cmake --install build
           cd ../
           rm -rf opentelemetry-cpp-1.25.0
-      - name: Build project
+      - name: Build project     
         env:
           EW_HOME: /opt/earthworm
           EW_VERSION: earthworm-v8.0b10
@@ -114,9 +114,9 @@ jobs:
           cd build
           cpack -B artifacts TGZ
           sudo mv artifacts/*gz /artifacts/
+      - name: Save artifacts
         uses: actions/upload-artifact@v4
         with:
           name: arm64-build
           path: /artifacts/    
-          retention-days: 90
-
+          retention-days: 90       
