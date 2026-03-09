@@ -15,8 +15,16 @@ jobs:
     steps:
       - name: Build prerequisites
         env:
+          EW_HOME: /opt/earthworm
+          EW_VERSION: earthworm-v8.0b9
+          EW_INSTALLATION: INST_UTAH
+          EW_INSTALL_BITS: 64
+          EW_BITS: 64
+          EW_CPPCFLAGS: "-D_LINUX -Dlinux -D_INTEL -D_USE_SCHED -D_USE_PTHREADS -D_USE_TERMIOS -D_FILE_OFFSET_BITS=64 -I/opt/earthworm/earthworm-v8.0b9/include -I/usr/include -I/usr/include/tirpc" 
+          PLATFORM: LINUX
         run: |
           apt-get install -y g++
+          apt-get install -y gfortran
           apt-get install -y tar
           apt-get install -y wget
           apt-get install -y file
@@ -25,7 +33,11 @@ jobs:
           apt-get install -y libcurl4-openssl-dev
           apt-get install -y cmake
           apt-get install -y ninja-build 
-          apt-get install libboost-all-dev
+          apt-get install -y libboost-all-dev
+          apt-get install -y libssl-dev
+          apt-get install -y libtirpc-dev
+          apt-get install -y sed
+          mkdir -p /opt/earthworm
           mkdir -p /usr/local/lib
           mkdir -p /usr/local/include
           wget -q https://github.com/EarthScope/libmseed/archive/refs/tags/v3.2.4.tar.gz
@@ -36,6 +48,7 @@ jobs:
           cmake --build build
           cmake --install build
           cd ..
+          rm -rf libmseed-3.2.4
           wget -q https://github.com/EarthScope/libslink/archive/refs/tags/v4.2.0.tar.gz
           tar -xf v4.2.0.tar.gz
           rm v4.2.0.tar.gz
@@ -43,5 +56,14 @@ jobs:
           make static
           make install
           mv libslink.a /usr/local/lib/
-          
+          cd ../
+          rm -rf libslink-4.2.0
+          wget -q https://github.com/gabime/spdlog/archive/refs/tags/v1.17.0.tar.gz
+          tar -xf v1.17.0.tar.gz
+          cd spdlog-1.17.0
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DSPDLOG_BUILD_SHARED=OFF -DCMAKE_INSTALL_PREFIX=/usr/local/
+          cmake --build build
+          cmake --install build
+          cd ../
+          rm -rf spdlog-1.17.0
        
