@@ -23,20 +23,21 @@ jobs:
           EW_CPPCFLAGS: "-D_LINUX -Dlinux -D_INTEL -D_USE_SCHED -D_USE_PTHREADS -D_USE_TERMIOS -D_FILE_OFFSET_BITS=64 -I/opt/earthworm/earthworm-v8.0b9/include -I/usr/include -I/usr/include/tirpc" 
           PLATFORM: LINUX
         run: |
-          apt-get install -y g++
-          apt-get install -y gfortran
-          apt-get install -y tar
-          apt-get install -y wget
-          apt-get install -y file
-          apt-get install -y clang
-          apt-get install -y make
-          apt-get install -y libcurl4-openssl-dev
-          apt-get install -y cmake
-          apt-get install -y ninja-build 
-          apt-get install -y libboost-all-dev
-          apt-get install -y libssl-dev
-          apt-get install -y libtirpc-dev
-          apt-get install -y sed
+          sudo apt-get update
+          sudo apt-get install -y g++
+          sudo apt-get install -y gfortran
+          sudo apt-get install -y tar
+          sudo apt-get install -y wget
+          sudo apt-get install -y file
+          sudo apt-get install -y clang
+          sudo apt-get install -y make
+          sudo apt-get install -y libcurl4-openssl-dev
+          sudo apt-get install -y cmake
+          sudo apt-get install -y ninja-build 
+          sudo apt-get install -y libboost-all-dev
+          sudo apt-get install -y libssl-dev
+          sudo apt-get install -y libtirpc-dev
+          sudo apt-get install -y sed
           mkdir -p /opt/earthworm
           mkdir -p /usr/local/lib
           mkdir -p /usr/local/include
