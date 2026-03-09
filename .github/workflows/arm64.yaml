@@ -14,17 +14,18 @@ jobs:
         BUILD_TARGET: [Release]
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v7
         with:
+          name: arm64-build
           path: /artifacts/         
       - name: Build prerequisites
         env:
           EW_HOME: /opt/earthworm
-          EW_VERSION: earthworm-v8.0b9
+          EW_VERSION: earthworm-v8.0b10
           EW_INSTALLATION: INST_UTAH
           EW_INSTALL_BITS: 64
           EW_BITS: 64
-          EW_CPPCFLAGS: "-D_LINUX -Dlinux -D_INTEL -D_USE_SCHED -D_USE_PTHREADS -D_USE_TERMIOS -D_FILE_OFFSET_BITS=64 -I/opt/earthworm/earthworm-v8.0b9/include -I/usr/include -I/usr/include/tirpc" 
+          EW_CPPCFLAGS: "-D_LINUX -Dlinux -D_INTEL -D_USE_SCHED -D_USE_PTHREADS -D_USE_TERMIOS -D_FILE_OFFSET_BITS=64 -I/opt/earthworm/earthworm-v8.0b10/include -I/usr/include -I/usr/include/tirpc" 
           PLATFORM: LINUX
         run: |
           sudo apt-get update
@@ -73,11 +74,11 @@ jobs:
           sudo cmake --install build
           cd ../
           rm -rf spdlog-1.17.0
-          wget https://gitlab.com/seismic-software/earthworm/-/archive/v8.0b9/earthworm-v8.0b9.tar.gz
-          tar -xf earthworm-v8.0b9.tar.gz
-          rm earthworm-v8.0b9.tar.gz
-          sudo mv earthworm-v8.0b9 /opt/earthworm/
-          cd /opt/earthworm/earthworm-v8.0b9/src
+          wget https://gitlab.com/seismic-software/earthworm/-/archive/v8.0b10/earthworm-v8.0b10.tar.gz
+          tar -xf earthworm-v8.0b10.tar.gz
+          rm earthworm-v8.0b10.tar.gz
+          sudo mv earthworm-v8.0b10 /opt/earthworm/
+          cd /opt/earthworm/earthworm-v8.0b10/src
           export CC=gcc
           export CXX=g++
           export FC=gfortran
@@ -101,6 +102,11 @@ jobs:
           cd ../
           rm -rf opentelemetry-cpp-1.25.0
       - name: Build project
+        env:
+          EW_HOME: /opt/earthworm
+          EW_VERSION: earthworm-v8.0b10
+          EW_LIBRARY_DIR: /opt/earthworm/earthworm-v8.0b10/lib
+          EW_INCLUDE_DIR: /opt/earthworm/earthworm-v8.0b10/include
         run: |
           mkdir -p /artifacts
           pwd
