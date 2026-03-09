@@ -81,9 +81,9 @@ jobs:
           export FC=gfortran
           export PATH="${EW_HOME}/${EW_VERSION}/bin:${PATH}"
           export WARNFLAGS="-Wall -Wextra -Wno-sign-compare -Wno-unused-parameter -Wno-unknown-pragmas -Wno-pragmas -Wformat -Wdeclaration-after-statement"
-          export CFLAGS="-m64 -g -pthread -fPIC ${WARNFLAGS}"
+          export CFLAGS="-g -pthread -fPIC ${WARNFLAGS}"
           export CXXFLAGS="${CFLAGS}"
-          export FFLAGS="-m64 -O -g -Wuninitialized -Werror=line-truncation -ffpe-trap=invalid,zero,overflow -fbacktrace"
+          export FFLAGS="-O -g -Wuninitialized -Werror=line-truncation -ffpe-trap=invalid,zero,overflow -fbacktrace"
           export CPPFLAGS="-D_LINUX -Dlinux -D_INTEL -D_USE_SCHED -D_USE_PTHREADS -D_USE_TERMIOS -D_FILE_OFFSET_BITS=64 -I${EW_HOME}/${EW_VERSION}/include -I/usr/include -I/usr/include/tirpc"
           export LDADD="-ltirpc"
           export GLOBALFLAGS="${CFLAGS} ${CPPFLAGS}"
