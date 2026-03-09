@@ -14,10 +14,6 @@ jobs:
         BUILD_TARGET: [Release]
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/download-artifact@v7
-        with:
-          name: arm64-build
-          path: /artifacts/         
       - name: Build prerequisites
         env:
           EW_HOME: /opt/earthworm
@@ -118,3 +114,9 @@ jobs:
           cd build
           cpack -B artifacts TGZ
           sudo mv artifacts/*gz /artifacts/
+        uses: actions/upload-artifact@v4
+        with:
+          name: arm64-build
+          path: /artifacts/    
+          retention-days: 90
+
