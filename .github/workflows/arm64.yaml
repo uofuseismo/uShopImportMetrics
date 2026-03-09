@@ -55,8 +55,7 @@ jobs:
           rm v4.2.0.tar.gz
           cd libslink-4.2.0
           make static
-          make install
-          sudo mv libslink.a /usr/local/lib/
+          sudo make install
           cd ../
           rm -rf libslink-4.2.0
           wget -q https://github.com/gabime/spdlog/archive/refs/tags/v1.17.0.tar.gz
@@ -67,5 +66,32 @@ jobs:
           sudo cmake --install build
           cd ../
           rm -rf spdlog-1.17.0
+          wget https://github.com/open-telemetry/opentelemetry-cpp/archive/refs/tags/v1.25.0.tar.gz
+          tar -xf v1.25.0.tar.gz
+          rm v1.25.0.tar.gz
+          cd opentelemetry-cpp-1.25.0
+          cmake -B build -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release -DWITH_PROMETHEUS=OFF -DWITH_BENCHMARK=OFF -DCMAKE_CXX_COMPILER=clang++ -DWITH_EXAMPLES=OFF -DWITH_ABI_VERSION_1=OFF -DWITH_ABI_VERSION_2=ON -DWITH_OTLP_HTTP=ON
+          cmake --build build
+          sudo cmake --install build
+          cd /opt/earthworm
+          wget https://gitlab.com/seismic-software/earthworm/-/archive/v8.0b9/earthworm-v8.0b9.tar.gz
+          tar -xf earthworm-v8.0b9.tar.gz
+          rm earthworm-v8.0b9.tar.gz
+          cd /opt/earthworm/earthworm-v8.0b9/src
+          export CC=gcc
+          export CXX=g++
+          export FC=gfortran
+          export PATH="${EW_HOME}/${EW_VERSION}/bin:${PATH}"
+          export WARNFLAGS="-Wall -Wextra -Wno-sign-compare -Wno-unused-parameter -Wno-unknown-pragmas -Wno-pragmas -Wformat -Wdeclaration-after-statement"
+          export CFLAGS="-m64 -g -pthread -fPIC ${WARNFLAGS}"
+          export CXXFLAGS="${CFLAGS}"
+          export FFLAGS="-m64 -O -g -Wuninitialized -Werror=line-truncation -ffpe-trap=invalid,zero,overflow -fbacktrace"
+          export CPPFLAGS="-D_LINUX -Dlinux -D_INTEL -D_USE_SCHED -D_USE_PTHREADS -D_USE_TERMIOS -D_FILE_OFFSET_BITS=64 -I${EW_HOME}/${EW_VERSION}/include -I/usr/include -I/usr/include/tirpc"
+          export LDADD="-ltirpc"
+          export GLOBALFLAGS="${CFLAGS} ${CPPFLAGS}"
+          make unix
       - name:
-        run: ls
+        run: |
+          ls /usr/local/lib
+          ls /opt/earthworm
+ 
