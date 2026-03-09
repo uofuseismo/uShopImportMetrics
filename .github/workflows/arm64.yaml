@@ -73,6 +73,8 @@ jobs:
           cmake -B build -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release -DWITH_PROMETHEUS=OFF -DWITH_BENCHMARK=OFF -DCMAKE_CXX_COMPILER=clang++ -DWITH_EXAMPLES=OFF -DWITH_ABI_VERSION_1=OFF -DWITH_ABI_VERSION_2=ON -DWITH_OTLP_HTTP=ON
           cmake --build build
           sudo cmake --install build
+          cd ../
+          rm -rf opentelemetry-cpp-1.25.0
           cd /opt/earthworm
           wget https://gitlab.com/seismic-software/earthworm/-/archive/v8.0b9/earthworm-v8.0b9.tar.gz
           tar -xf earthworm-v8.0b9.tar.gz
@@ -90,8 +92,10 @@ jobs:
           export LDADD="-ltirpc"
           export GLOBALFLAGS="${CFLAGS} ${CPPFLAGS}"
           make unix
-      - name:
+      - name: Build project
         run: |
+          pwd
+          ls
           ls /usr/local/lib
           ls /opt/earthworm
  
