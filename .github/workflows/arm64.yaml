@@ -121,7 +121,9 @@ jobs:
           ctest --test-dir build
           sudo cmake --install build
           cd build
+          ls
           sudo cpack -B artifacts TGZ
+          ls artifacts
           sudo mv artifacts/*gz /artifacts/
       - name: Save artifacts
         uses: actions/upload-artifact@v4
