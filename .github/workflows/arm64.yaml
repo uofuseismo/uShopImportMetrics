@@ -38,16 +38,16 @@ jobs:
           sudo apt-get install -y libssl-dev
           sudo apt-get install -y libtirpc-dev
           sudo apt-get install -y sed
-          mkdir -p /opt/earthworm
-          mkdir -p /usr/local/lib
-          mkdir -p /usr/local/include
+          sudo mkdir -p /opt/earthworm
+          sudo mkdir -p /usr/local/lib
+          sudo mkdir -p /usr/local/include
           wget -q https://github.com/EarthScope/libmseed/archive/refs/tags/v3.2.4.tar.gz
           tar -xf v3.2.4.tar.gz
           rm v3.2.4.tar.gz
           cd libmseed-3.2.4
           cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DBUILD_STATIC_LIBS=ON -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX=/usr/local
           cmake --build build
-          cmake --install build
+          sudo cmake --install build
           cd ..
           rm -rf libmseed-3.2.4
           wget -q https://github.com/EarthScope/libslink/archive/refs/tags/v4.2.0.tar.gz
@@ -56,7 +56,7 @@ jobs:
           cd libslink-4.2.0
           make static
           make install
-          mv libslink.a /usr/local/lib/
+          sudo mv libslink.a /usr/local/lib/
           cd ../
           rm -rf libslink-4.2.0
           wget -q https://github.com/gabime/spdlog/archive/refs/tags/v1.17.0.tar.gz
@@ -64,7 +64,8 @@ jobs:
           cd spdlog-1.17.0
           cmake -B build -DCMAKE_BUILD_TYPE=Release -DSPDLOG_BUILD_SHARED=OFF -DCMAKE_INSTALL_PREFIX=/usr/local/
           cmake --build build
-          cmake --install build
+          sudo cmake --install build
           cd ../
           rm -rf spdlog-1.17.0
-       
+      - name:
+        run: ls
