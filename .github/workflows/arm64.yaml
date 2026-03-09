@@ -66,6 +66,7 @@ jobs:
           rm v1.17.0.tar.gz
           cd spdlog-1.17.0
           cmake -B build -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release -DSPDLOG_BUILD_SHARED=OFF -DCMAKE_INSTALL_PREFIX=/usr/local/
+          cmake --build build
           sudo cmake --install build
           cd ../
           rm -rf spdlog-1.17.0
