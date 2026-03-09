@@ -70,14 +70,14 @@ jobs:
           sudo cmake --install build
           cd ../
           rm -rf spdlog-1.17.0
-          wget -q https://github.com/catchorg/Catch2/archive/refs/tags/v3.13.0.tar.gz
-          tar -xf v3.13.0.tar.gz
-          rm v3.13.0.tar.gz
-          cd Catch2-3.13.0/
-          cmake -B build -DCMAKE_CXX_COMPILER=clang++
+          wget -q https://github.com/catchorg/Catch2/archive/refs/tags/v3.12.0.tar.gz
+          tar -xf v3.12.0.tar.gz
+          rm v3.12.0.tar.gz
+          cd Catch2-3.12.0/
+          cmake -B build -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release
           sudo cmake --install build
           cd ../
-          rm -r Catch2-3.13.0/
+          rm -r Catch2-3.12.0/
           wget https://gitlab.com/seismic-software/earthworm/-/archive/v8.0b10/earthworm-v8.0b10.tar.gz
           tar -xf earthworm-v8.0b10.tar.gz
           rm earthworm-v8.0b10.tar.gz
