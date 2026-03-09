@@ -59,12 +59,14 @@ jobs:
           tar -xf v4.2.0.tar.gz
           rm v4.2.0.tar.gz
           cd libslink-4.2.0
-          make static
-          sudo make install
+          CC=clang make static
+          sudo cp libslink.a /usr/local/lib
+          sudo cp libslink.h /usr/local/include
           cd ../
           rm -rf libslink-4.2.0
           wget -q https://github.com/gabime/spdlog/archive/refs/tags/v1.17.0.tar.gz
           tar -xf v1.17.0.tar.gz
+          rm v1.17.0.tar.gz
           cd spdlog-1.17.0
           cmake -B build -DCMAKE_BUILD_TYPE=Release -DSPDLOG_BUILD_SHARED=OFF -DCMAKE_INSTALL_PREFIX=/usr/local/
           cmake --build build
@@ -98,12 +100,15 @@ jobs:
           sudo cmake --install build
           cd ../
           rm -rf opentelemetry-cpp-1.25.0
-      - name: Build project        
+      - name: Build project
         run: |
           mkdir -p /artifacts
           pwd
-          ls
-          ls /usr/local/lib
-          ls /opt/earthworm
-          cmake -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic" -DBUILE_EW=ON -DCMAKE_BUILD_TYPE=Release
+          ls /opt/earthworm/
+          cmake -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release -DBUILD_EW=ON -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic" 
           cmake --build build
+          ctest --test-dir=build
+          sudo cmake --install build
+          cd build
+          cpack -B artifacts TGZ
+          sudo mv artifacts/*gz /artifacts/

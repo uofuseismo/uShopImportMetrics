@@ -87,6 +87,7 @@ target_link_libraries(libuShopImportMetrics
                               Threads::Threads)
 set(BINARIES "")
 if (${Earthworm_FOUND})
+   message("Building uEarthwormPacketMetrics")
    target_link_libraries(libuShopImportMetrics PRIVATE Earthworm::util Earthworm::mt)
    target_compile_definitions(libuShopImportMetrics PRIVATE WITH_EARTHWORM)
 
@@ -159,7 +160,7 @@ export(EXPORT ${PROJECT_NAME}Targets
        FILE "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}Targets.cmake")
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/uShopImportMetricsConfig.cmake
               ${CMAKE_CURRENT_BINARY_DIR}/uShopImportMetricsConfigVersion.cmake
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/uEarthwormPacketMetrics)
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/uShopImportMetrics)
 
 ##########################################################################################
 #                                       Packaging                                        #
@@ -186,4 +187,18 @@ cpack_add_component(headers
 cpack_add_component(applications
                     DISPLAY_NAME "uShopImportMetrics applications"
                     DEPENDS libraries)
+set(CPACK_GENERATOR TGZ)
+if (DPKG_PROGRAM)
+   list(APPEND CPACK_GENERATOR DEB)
+   set(CPACK_DEBIAN_PACKAGE_DEPENDS "${CPACK_DEBIAN_PACKAGE_DEPENDS}")
+   set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON) 
+endif()
+set(CPACK_SOURCE_IGNORE_FILES
+  /\\.git/
+  \\.swp
+  \\.orig
+  /CMakeLists\\.txt\\.user
+  /private/
+)
+include(CPack) # Put this last!
 
