@@ -54,7 +54,7 @@ public:
 
     /// @brief Default constructor.
     WaveRing(const WaveRingOptions &options,
-             const std::function<void (Packet &&)> &callbac,
+             const std::function<void (Packet &&)> &callback,
              std::shared_ptr<spdlog::logger> logger);
     /// @brief Move constructor.
     /// @param[in,out] waveRing  Initializes the ring reader from this class.

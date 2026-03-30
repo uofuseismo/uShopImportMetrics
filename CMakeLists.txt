@@ -36,7 +36,10 @@ else()
 endif()
 
 set(LIBRARY_SRC
+    src/seedLinkClient.cpp
+    src/seedLinkClientOptions.cpp
     src/streamIdentifier.cpp
+    src/streamSelector.cpp
     src/packet.cpp
     src/version.cpp)
 set(LIBRARY_MODULE_FILES
@@ -44,6 +47,8 @@ set(LIBRARY_MODULE_FILES
 set(HEADER_FILES
     include/uShopImportMetrics/packet.hpp
     include/uShopImportMetrics/streamIdentifier.hpp
+    include/uShopImportMetrics/streamSelector.hpp
+    include/uShopImportMetrics/seedLinkClientOptions.hpp
     include/uShopImportMetrics/version.hpp)
 if (${Earthworm_FOUND})
    list(APPEND LIBRARY_SRC src/traceBuf2.cpp src/waveRing.cpp)
@@ -113,7 +118,7 @@ endif()
 if (PROJECT_IS_TOP_LEVEL AND ${BUILD_TESTS})
    add_executable(unitTests
                   testing/packet.cpp
-                  #testing/seedLink.cpp
+                  testing/seedLink.cpp
                   )
    set_target_properties(unitTests PROPERTIES
                          CXX_STANDARD 20
