@@ -36,6 +36,7 @@ else()
 endif()
 
 set(LIBRARY_SRC
+    src/metricsSingleton.cpp
     src/seedLinkClient.cpp
     src/seedLinkClientOptions.cpp
     src/streamIdentifier.cpp
@@ -45,6 +46,7 @@ set(LIBRARY_SRC
 set(LIBRARY_MODULE_FILES
     src/modules/metrics.cppm)
 set(HEADER_FILES
+    include/uShopImportMetrics/metricsSingleton.hpp
     include/uShopImportMetrics/packet.hpp
     include/uShopImportMetrics/streamIdentifier.hpp
     include/uShopImportMetrics/streamSelector.hpp
@@ -96,7 +98,8 @@ if (${Earthworm_FOUND})
    target_link_libraries(libuShopImportMetrics PRIVATE Earthworm::util Earthworm::mt)
    target_compile_definitions(libuShopImportMetrics PRIVATE WITH_EARTHWORM)
 
-   add_executable(uEarthwormPacketMetrics src/earthwormPacketMetrics.cpp)
+   add_executable(uEarthwormPacketMetrics
+                  src/earthwormPacketMetrics.cpp)
    set_target_properties(uEarthwormPacketMetrics PROPERTIES
                          CXX_STANDARD 20
                          CXX_STANDARD_REQUIRED YES 
@@ -110,6 +113,26 @@ if (${Earthworm_FOUND})
                               PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>)
    set(BINARIES ${BINARIES} uEarthwormPacketMetrics)
 endif()
+message("Building uSEEDLinkPacketMetrics")
+add_executable(uSEEDLinkPacketMetrics
+               src/seedLinkPacketMetrics.cpp)
+set_target_properties(uSEEDLinkPacketMetrics PROPERTIES
+                      CXX_STANDARD 20
+                      CXX_STANDARD_REQUIRED YES
+                      CXX_EXTENSIONS NO)
+set_target_properties(uSEEDLinkPacketMetrics PROPERTIES
+                      CXX_STANDARD 20
+                      CXX_STANDARD_REQUIRED YES 
+                      CXX_EXTENSIONS NO) 
+target_link_libraries(uSEEDLinkPacketMetrics
+                      PRIVATE uShopImportMetrics::libuShopImportMetrics
+                              opentelemetry-cpp::otlp_http_metric_exporter
+                              Boost::headers
+                              Boost::program_options)
+target_include_directories(uSEEDLinkPacketMetrics
+                           PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src>
+                           PRIVATE $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>)
+set(BINARIES ${BINARIES} uSEEDLinkPacketMetrics)
 
 ##########################################################################################
 #                                         Tests                                          #

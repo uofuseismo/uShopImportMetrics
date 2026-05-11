@@ -153,7 +153,7 @@ public:
         std::shared_ptr<spdlog::logger> logger) :
         mAddPacketCallback(callback),
         mOptions(options),
-        mLogger(logger)
+        mLogger(std::move(logger))
     {
         if (mLogger == nullptr)
         {
@@ -560,9 +560,10 @@ SEEDLinkClient::SEEDLinkClient(
     const SEEDLinkClientOptions &options,
     const std::function<void (Packet &&)> &callback,
     std::shared_ptr<spdlog::logger> logger) :
-    pImpl(std::make_unique<SEEDLinkClientImpl> (options, callback, logger))
+    pImpl(std::make_unique<SEEDLinkClientImpl> (options,
+                                                callback, 
+                                                std::move(logger)))
 {
-    //pImpl->initialize(options);
 }
 
 /// Initialized?
