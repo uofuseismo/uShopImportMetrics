@@ -4,6 +4,7 @@
 #define uShopImportMetrics_MAJOR @uShopImportMetrics_VERSION_MAJOR@
 #define uShopImportMetrics_MINOR @uShopImportMetrics_VERSION_MINOR@
 #define uShopImportMetrics_PATCH @uShopImportMetrics_VERSION_PATCH@
+#define uShopImportMetrics_GITTAG "@uFilterPickerPickBroker_GITTAG@"
 #define uShopImportMetrics_VERSION "@PROJECT_VERSION@"
 namespace UShopImportMetrics
 {
@@ -21,6 +22,10 @@ public:
     [[nodiscard]] static int getPatch() noexcept;
     /// @result The full version number as a string, e.g., "1.2.3".
     [[nodiscard]] static std::string getVersion() noexcept;
+    /// @result The full version number as a string with the tag, e.g., "1.2.3-abc123".
+    [[nodiscard]] static std::string getVersionWithTag() noexcept;
+    /// @result The git tag.
+    [[nodiscard]] static std::string getTag() noexcept;
     /// @brief Determines if the version is greater than or equal to
     ///        the current (major, minor, patch).
     /// @param[in] major  The major version number.

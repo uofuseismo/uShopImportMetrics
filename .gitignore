@@ -1,1 +1,6 @@
 version.hpp
+CMakeUserPresets.json
+*.ini
+build
+.idea
+.vscode

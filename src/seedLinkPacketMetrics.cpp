@@ -20,9 +20,11 @@
 #include <boost/program_options.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/ini_parser.hpp>
+#include <boost/algorithm/string.hpp>
 #include "uShopImportMetrics/version.hpp"
 #include "uShopImportMetrics/seedLinkClient.hpp"
 #include "uShopImportMetrics/seedLinkClientOptions.hpp"
+#include "uShopImportMetrics/streamSelector.hpp"
 #include "uShopImportMetrics/packet.hpp"
 
 #define APPLICATION_NAME "uSEEDLinkPacketMetrics"
@@ -98,6 +100,36 @@ struct ProgramOptions
         }   
         verbosity
             = propertyTree.get<int> ("General.verbosity", verbosity);
+ 
+        // SEEDLink options
+        auto slinkHost
+            = propertyTree.get<std::string> ("SEEDLink.host");
+        auto slinkPort
+            = propertyTree.get<uint16_t> ("SEEDLink.port", 18000);
+        seedLinkOptions.setHost(slinkHost);
+        seedLinkOptions.setPort(slinkPort);
+        constexpr int maxSelectors{std::numeric_limits<uint16_t>::max()};
+        for (int iSelector = 1; iSelector <= maxSelectors; ++iSelector)
+        {
+            std::string selectorName{"SEEDLink.data_selector_"
+                                    + std::to_string(iSelector)};
+            auto selectorString
+                = propertyTree.get_optional<std::string> (selectorName);
+            if (selectorString)
+            {
+                std::vector<std::string> splitSelectors;
+                boost::split(splitSelectors, *selectorString,
+                             boost::is_any_of(",|"));
+                for (const auto &thisSplitSelector : splitSelectors)
+                {
+                    auto selector
+                       = StreamSelector::fromString(thisSplitSelector);
+                    seedLinkOptions.addStreamSelector(selector);
+                }
+            } 
+        }
+                     
+
     }
 
     [[nodiscard]] static std::optional<std::filesystem::path>

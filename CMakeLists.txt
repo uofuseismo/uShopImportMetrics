@@ -5,6 +5,8 @@ enable_testing()
 option(BUILD_SHARED_LIBS "Build using shared libraries" OFF)
 option(BUILD_EW "Build Earthworm" OFF)
 option(BUILD_TESTS "Compile unit tests" ON) 
+option(USE_CLANG_TIDY "Build using clang-tidy" OFF)
+include(CheckCXXCompilerFlag)
 include(GenerateExportHeader)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
@@ -16,8 +18,6 @@ if (NOT ${BUILD_SHARED_LIBS})
 endif()
 
 # Versioning information
-configure_file(${CMAKE_SOURCE_DIR}/src/version.hpp.in
-               ${CMAKE_SOURCE_DIR}/include/uShopImportMetrics/version.hpp)
 find_package(spdlog REQUIRED)
 find_package(libmseed REQUIRED)
 find_package(Boost COMPONENTS program_options REQUIRED)
@@ -34,6 +34,37 @@ if (${BUILD_TESTS})
 else()
    find_package(Catch2)
 endif()
+
+if (PROJECT_IS_TOP_LEVEL AND ${USE_CLANG_TIDY})
+   message("Looking for clang-tidy")
+   find_program(CLANG_TIDY_EXECUTABLE NAMES "clang-tidy")
+   if (CLANG_TIDY_EXECUTABLE)
+      message("Using clang-tidy  ${CLANG_TIDY_EXECUTABLE}")
+      set(CMAKE_C_CLANG_TIDY   ${CLANG_TIDY_EXECUTABLE} -p ${CMAKE_BINARY_DIR})
+      set(CMAKE_CXX_CLANG_TIDY ${CLANG_TIDY_EXECUTABLE} -p ${CMAKE_BINARY_DIR})
+      set(CMAKE_EXPORT_COMPILE_COMMANDS ON) 
+   else()
+      message("clang-tidy not found")
+   endif()
+endif()
+
+find_package(Git)
+if (Git_FOUND)
+   execute_process(
+     COMMAND ${GIT_EXECUTABLE} --no-pager log -n 1 HEAD "--pretty=format:%h"
+     OUTPUT_VARIABLE uShopImportMetrics_GITTAG
+     RESULT_VARIABLE gitresult
+     ERROR_QUIET
+     OUTPUT_STRIP_TRAILING_WHITESPACE
+   )
+   if (gitresult EQUAL 0)
+      message(STATUS "Last Git commit: ${uShopImportMetrics_GITTAG}")
+   endif()
+else()
+   set(uShopImportMetrics_GITTAG "")
+endif()
+configure_file(${CMAKE_SOURCE_DIR}/src/version.hpp.in
+               ${CMAKE_SOURCE_DIR}/include/uShopImportMetrics/version.hpp)
 
 set(LIBRARY_SRC
     src/metricsSingleton.cpp
