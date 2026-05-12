@@ -2,7 +2,6 @@
 #define USHOP_IMPORT_METRICS_METRICS_SINGLETON_HPP
 #include <atomic>
 #include <chrono>
-#include <cstdint>
 #include <map>
 #include <mutex>
 #include <string>
@@ -74,7 +73,6 @@ private:
     std::map<std::string, double> mStdCountsMap;
     std::map<std::string, std::unique_ptr<WindowedMetrics>> mWindowedMetricsMap;
     std::atomic<int64_t> mReceivedPacketsCounter{0};
-    std::atomic<int64_t> mSentPacketsCounter{0};
     std::chrono::seconds mUpdateInterval{UPDATE_INTERVAL_SECONDS};
     std::chrono::microseconds mMaximumLatency{std::chrono::days {MAXIMUM_LATENCY_DAYS}};
     std::chrono::microseconds mMaximumFutureTime{0};
@@ -84,6 +82,10 @@ void initializeMetricsSingleton();
 /// @brief Convenience function to convert a stream identifier to a key name.
 [[nodiscard]] 
 std::string toKeyName(const UShopImportMetrics::StreamIdentifier &identifier);
+/// @brief Convenience function to extract stream identifier from a packet
+///        and convert it to a key name.
+[[nodiscard]]
+std::string toKeyName(const UShopImportMetrics::Packet &packet);
 
 }
 #endif

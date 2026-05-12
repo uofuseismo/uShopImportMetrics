@@ -74,14 +74,15 @@ set(LIBRARY_SRC
     src/streamSelector.cpp
     src/packet.cpp
     src/version.cpp)
-set(LIBRARY_MODULE_FILES
-    src/modules/metrics.cppm)
+#set(LIBRARY_MODULE_FILES
+#    src/modules/metrics.cppm)
 set(HEADER_FILES
     include/uShopImportMetrics/metricsSingleton.hpp
-    include/uShopImportMetrics/packet.hpp
+    include/uShopImportMetrics/seedLinkClient.hpp
+    include/uShopImportMetrics/seedLinkClientOptions.hpp
     include/uShopImportMetrics/streamIdentifier.hpp
     include/uShopImportMetrics/streamSelector.hpp
-    include/uShopImportMetrics/seedLinkClientOptions.hpp
+    include/uShopImportMetrics/packet.hpp
     include/uShopImportMetrics/version.hpp)
 if (${Earthworm_FOUND})
    list(APPEND LIBRARY_SRC src/traceBuf2.cpp src/waveRing.cpp)
@@ -102,12 +103,12 @@ target_sources(libuShopImportMetrics
                           ${CMAKE_CURRENT_SOURCE_DIR}
                       FILES
                           ${HEADER_FILES}
-               PUBLIC FILE_SET
-                      CXX_MODULES
-                      BASE_DIRS
-                         src/modules
-                      FILES
-                         ${LIBRARY_MODULE_FILES}
+               #PUBLIC FILE_SET
+               #       CXX_MODULES
+               #       BASE_DIRS
+               #          src/modules
+               #       FILES
+               #          ${LIBRARY_MODULE_FILES}
                )
 target_include_directories(libuShopImportMetrics
                            PUBLIC $<INSTALL_INTERFACE:include>

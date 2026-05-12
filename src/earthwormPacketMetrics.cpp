@@ -1,33 +1,61 @@
+#include <stdlib.h>
 #include <iostream>
 #include <csignal>
+#include <cstdlib>
+#include <cstdint>
+#include <cstddef>
+#include <cctype>
 #include <queue>
+#include <algorithm>
 #include <condition_variable>
 #include <mutex>
 #include <thread>
 #include <atomic>
+#include <chrono>
 #include <optional>
+#include <exception>
 #include <filesystem>
+#include <functional>
+#include <future>
+#include <memory>
+#include <stdexcept>
 #include <string>
+#include <utility>
+#ifndef NDEBUG
+#include <cassert>
+#endif
 #include <spdlog/spdlog.h>
+#include <spdlog/logger.h>
+#include <spdlog/common.h>
 #include <spdlog/sinks/daily_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
-#include <boost/program_options.hpp>
+#include <boost/program_options/options_description.hpp>
+#include <boost/program_options/parsers.hpp>
+#include <boost/program_options/variables_map.hpp>
+#include <boost/program_options/value_semantic.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/ini_parser.hpp>
-#include <boost/asio/ip/host_name.hpp>
-#include <opentelemetry/metrics/meter_provider.h>
+//#include <boost/algorithm/string/classification.hpp>
+//#include <boost/algorithm/string/split.hpp>
+//#include <opentelemetry/metrics/meter_provider.h>
+//#include <opentelemetry/metrics/provider.h>
 #include <opentelemetry/metrics/provider.h>
 #include "uShopImportMetrics/waveRing.hpp"
 #include "uShopImportMetrics/version.hpp"
 #include "uShopImportMetrics/packet.hpp"
+#include "uShopImportMetrics/metricsSingleton.hpp"
+#include "otelMetrics.hpp"
 
-import Metrics;
+//import Metrics;
 
 using namespace UShopImportMetrics;
 
 namespace
 {
 
+volatile std::sig_atomic_t mSignalStatus;
+
+/*
 opentelemetry::nostd::shared_ptr<opentelemetry::metrics::ObservableInstrument>
     validPacketsReceivedCounter;
 opentelemetry::nostd::shared_ptr<opentelemetry::metrics::ObservableInstrument>
@@ -42,6 +70,7 @@ opentelemetry::nostd::shared_ptr<opentelemetry::metrics::ObservableInstrument>
     windowedAverageCountsGauge;
 opentelemetry::nostd::shared_ptr<opentelemetry::metrics::ObservableInstrument>
     windowedStdCountsGauge;
+*/
 
 std::atomic<bool> mInterrupted{false};
 
@@ -53,13 +82,15 @@ struct OTelHTTPMetricsOptions
     std::string suffix{"/v1/metrics"};
 };
 
+//NOLINTBEGIN(misc-include-cleaner)
 std::string getOTelCollectorURL(boost::property_tree::ptree &propertyTree,
                                 const std::string &section)
+//NOLINTEND(misc-include-cleaner)
 {
     std::string result; 
-    std::string otelCollectorHost
+    const std::string otelCollectorHost
         = propertyTree.get<std::string> (section + ".host", "");
-    uint16_t otelCollectorPort
+    const uint16_t otelCollectorPort
         = propertyTree.get<uint16_t> (section + ".port", 4218);
     if (!otelCollectorHost.empty())
     {
@@ -180,7 +211,7 @@ struct ProgramOptions
                 = static_cast<int> (windowedMetricsUpdateInterval.count());
             updateInterval
                 = propertyTree.get<int> (
-                     "OTelTTPMetricsOptions.windowedMetricsUpdateIntervalInSeconds",
+                     "OTelMetricsOptions.windowedMetricsUpdateIntervalInSeconds",
                      updateInterval);
             if (updateInterval <= 0)
             {
@@ -203,7 +234,7 @@ struct ProgramOptions
         }
         otelAttributes
             = propertyTree.get<std::string> (
-                 "OTelHTTPMetricsOptions.resourceAttributes", otelAttributes);
+                 "OTelMetricsOptions.resourceAttributes", otelAttributes);
     }
 
     [[nodiscard]] static std::optional<std::filesystem::path>
@@ -224,17 +255,19 @@ Allowed options)""");
                      "Defines the initialization file for this executable")
             ("version", "Displays the version number");
         boost::program_options::variables_map vm; 
+        //NOLINTBEGIN(misc-include-cleaner)
         boost::program_options::store(
             boost::program_options::parse_command_line(argc, argv, desc), vm);
+        //NOLINTEND(misc-include-cleaner)
         boost::program_options::notify(vm);
         if (vm.count("help"))
         {
-            std::cout << desc << std::endl;
+            std::cout << desc << "\n";
             return std::nullopt;
         }
         else if (vm.count("version"))
         {
-            std::cout << Version::getVersion() << std::endl;
+            std::cout << Version::getVersionWithTag() << "\n";
             return std::nullopt;
         }
         else if (vm.count("ini"))
@@ -262,7 +295,7 @@ public:
     Process(std::unique_ptr<ProgramOptions> &&options,
             std::shared_ptr<spdlog::logger> logger) :
         mOptions(std::move(options)),
-        mLogger(logger)
+        mLogger(std::move(logger))
     {
 #ifndef NDEBUG
         assert(mOptions);
@@ -280,7 +313,7 @@ public:
         {
             SPDLOG_LOGGER_INFO(mLogger, "Initializing metrics");
             auto &metrics
-                = UShopImportMetrics::Metrics::MetricsSingleton::getInstance();
+                = UShopImportMetrics::MetricsSingleton::getInstance();
             metrics.setUpdateInterval(mOptions->windowedMetricsUpdateInterval);
             // Need a provider from which to get a meter.  This is initialized
             // once and should last the duration of the application.
@@ -291,7 +324,6 @@ public:
             // so as to identify who is genreating these metrics.
             auto meter = provider->GetMeter(mOptions->applicationName, "1.2.0");
 
-            namespace UMetrics = UShopImportMetrics::Metrics;
             // Valid (good) packets
             validPacketsReceivedCounter
                 = meter->CreateInt64ObservableCounter(
@@ -299,7 +331,7 @@ public:
                     "Number of valid data packets received from SEEDLink client.",
                     "{packets}");
             validPacketsReceivedCounter->AddCallback(
-                UMetrics::observeValidPacketsReceived, nullptr);
+                ::observeValidPacketsReceived, nullptr);
             // Future packets
             futurePacketsReceivedCounter
                 = meter->CreateInt64ObservableCounter(
@@ -307,7 +339,7 @@ public:
                    "Number of future packets received from SEEDLink client.",
                    "{packets}");
             futurePacketsReceivedCounter->AddCallback(
-                UMetrics::observeFuturePacketsReceived, nullptr);
+                ::observeFuturePacketsReceived, nullptr);
             // Expired packets
             expiredPacketsReceivedCounter
                 = meter->CreateInt64ObservableCounter(
@@ -315,7 +347,7 @@ public:
                     "Number of expired packets received from SEEDLink client.",
                     "{packets}");
             expiredPacketsReceivedCounter->AddCallback(
-                UMetrics::observeExpiredPacketsReceived, nullptr);
+                ::observeExpiredPacketsReceived, nullptr);
             // Total packets received
             totalPacketsReceivedCounter
                 = meter->CreateInt64ObservableCounter(
@@ -323,7 +355,7 @@ public:
                     "Total number of packets received from SEEDLink client.  This includes future and expired packets.",
                     "{packets}");
             totalPacketsReceivedCounter->AddCallback(
-                UMetrics::observeTotalPacketsReceived, nullptr);
+                ::observeTotalPacketsReceived, nullptr);
             // Windowed average latency
             windowedAverageLatencyGauge
                 = meter->CreateDoubleObservableGauge(
@@ -331,7 +363,7 @@ public:
                     "The windowed average latency of packets.",
                     "{s}");
             windowedAverageLatencyGauge->AddCallback(
-                UMetrics::observeWindowedAverageLatency, nullptr);
+                ::observeWindowedAverageLatency, nullptr);
             // Windowed average counts
             windowedAverageCountsGauge
                 = meter->CreateDoubleObservableGauge(
@@ -339,7 +371,7 @@ public:
                     "The windowed average number of counts.",
                     "{counts}");
             windowedAverageCountsGauge->AddCallback(
-                UMetrics::observeWindowedAverageCounts, nullptr);
+                ::observeWindowedAverageCounts, nullptr);
             // Windowed std of counts
             windowedStdCountsGauge
                 = meter->CreateDoubleObservableGauge(
@@ -347,7 +379,7 @@ public:
                     "The windowed standard deviation of counts.",
                     "{counts}");
             windowedStdCountsGauge->AddCallback(
-                UMetrics::observeWindowedStdCounts, nullptr);
+                ::observeWindowedStdCounts, nullptr);
         }
     }
 
@@ -360,7 +392,7 @@ public:
     {
         int nPacketsSkipped{0};
         {
-        std::lock_guard<std::mutex> lock(mImportMutex);
+        const std::lock_guard<std::mutex> lock(mImportMutex);
         while (mPacketQueue.size() >= mMaximumQueueSize)
         {
             nPacketsSkipped = nPacketsSkipped + 1;
@@ -387,13 +419,13 @@ public:
     void tabulateMetrics()
     {
         auto &metrics
-            = UShopImportMetrics::Metrics::MetricsSingleton::getInstance();
+            = UShopImportMetrics::MetricsSingleton::getInstance();
         while (mKeepRunning)
         {
             bool gotPacket{false};
             Packet packet;
             {
-            std::lock_guard<std::mutex> lock(mImportMutex);
+            const std::lock_guard<std::mutex> lock(mImportMutex);
             if (!mPacketQueue.empty())
             {
                 gotPacket = true;
@@ -447,7 +479,7 @@ public:
     void handleMainThread()
     {    
         SPDLOG_LOGGER_DEBUG(mLogger, "Main thread entering waiting loop");
-        catchSignals();
+        stdCatchSignals();
         while (!mStopRequested)
         {    
             if (mInterrupted)
@@ -461,7 +493,7 @@ public:
             {
                 SPDLOG_LOGGER_CRITICAL(mLogger,
                    "Futures exception caught; terminating app");
-                 mStopRequested = true;
+                mStopRequested = true;
                 break;
             }
             std::unique_lock<std::mutex> lock(mStopMutex);
@@ -519,20 +551,17 @@ public:
         return isOkay;
     }
 
-    /// Handles sigterm and sigint
-    static void signalHandler(const int )
-    {    
+    void stdCatchSignals()
+    {   
+        std::signal(SIGINT,  Process::stdSignalHandler);
+        std::signal(SIGTERM, Process::stdSignalHandler);
+    }   
+
+    static void stdSignalHandler(const int signal)
+    {   
+        mSignalStatus = signal;
         mInterrupted = true;
-    }    
-    static void catchSignals()
-    {    
-        struct sigaction action;
-        action.sa_handler = signalHandler;
-        action.sa_flags = 0; 
-        sigemptyset(&action.sa_mask);
-        sigaction(SIGINT,  &action, NULL);
-        sigaction(SIGTERM, &action, NULL);
-    }    
+    }   
 
     std::unique_ptr<ProgramOptions> mOptions{nullptr};
     std::shared_ptr<spdlog::logger> mLogger{nullptr};
@@ -560,6 +589,7 @@ public:
 
 int main(int argc, char *argv[])
 {
+    UShopImportMetrics::initializeMetricsSingleton();
     std::filesystem::path iniFile;
     try
     {
@@ -588,6 +618,7 @@ int main(int argc, char *argv[])
     std::shared_ptr<spdlog::logger> logger{nullptr};
     if (options->consoleLog)
     {
+        //NOLINTNEXTLINE(misc-include-cleaner)
         logger = spdlog::stdout_color_mt(options->applicationName + "-console");
     }
     else
@@ -635,10 +666,9 @@ int main(int argc, char *argv[])
                    overwrite);
         }
     }
-    UShopImportMetrics::Metrics::initializeMetricsSingleton();
     if (options->exportMetrics)
     {
-        UShopImportMetrics::Metrics::initialize(
+        ::initializeOTelHTTP(
             options->otelHTTPMetricsOptions.url,
             options->otelHTTPMetricsOptions.exportInterval,
             options->otelHTTPMetricsOptions.exportTimeOut);
@@ -650,13 +680,13 @@ int main(int argc, char *argv[])
         auto process = std::make_unique<Process> (std::move(options), logger);
         SPDLOG_LOGGER_INFO(logger, "Starting metrics calculator...");
         process->start();
-        UShopImportMetrics::Metrics::cleanup();
+        ::cleanupOTelMetrics();
     }
     catch (const std::exception &e)
     {
         SPDLOG_LOGGER_CRITICAL(logger, "Metrics module failed with {}",
                                std::string {e.what()});
-        UShopImportMetrics::Metrics::cleanup();
+        ::cleanupOTelMetrics();
         return EXIT_FAILURE;
     }
     

@@ -33,13 +33,14 @@ Usage requires an initialization file, say metrics.ini, of the form
     moduleName=MOD_EARTHWORM_METRICS
     # The earthworm ring from which to scrape TraceBuf2 packets
     ringName=WAVE_RING
-    
 
-    [OTelTTPMetricsOptions]
-    # The endpoitn of the OTel collector
+    [OTelHTTPMetricsOptions]
+    # The endpoint of the OTel collector
     url=localhost:4318
     # The suffix to append to the host name.  Changing this is not recommended.
     #suffix=/v1/metrics
+
+    [OtelMetricsOptions]
     # Nominally, the windowed metrics are computed every 2 minutes but this can be adjusted.
     windowedMetricsUpdateIntervalInSeconds=120
     # The default values for the OTEL_RESOURCE_ATTRIBUTES will be lifted from this. 
