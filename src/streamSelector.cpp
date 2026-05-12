@@ -1,10 +1,16 @@
-#include <iostream>
+#include <cctype>
 #ifndef NDEBUG
 #include <cassert>
 #endif
 #include <string>
 #include <algorithm>
-#include <boost/algorithm/string.hpp>
+#include <memory>
+#include <stdexcept>
+#include <vector>
+#include <utility>
+#include <boost/algorithm/string/classification.hpp>
+#include <boost/algorithm/string/split.hpp>
+#include <boost/algorithm/string/trim.hpp>
 #include "uShopImportMetrics/streamSelector.hpp"
 
 using namespace UShopImportMetrics;
