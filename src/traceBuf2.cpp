@@ -1,7 +1,12 @@
-#include <iostream>
+#include <cstddef>
+#include <utility>
+//#include <iostream>
+#include <cstdint>
 #include <cstring>
+#include <memory>
+#include <stdexcept>
+#include <type_traits>
 #include <vector>
-#include <sstream>
 #include <array>
 #include <algorithm>
 #include <string>
@@ -270,10 +275,10 @@ TraceBuf2 unpackEarthwormMessage(const char *message, const size_t messageLength
 
     result.setNativePacket(message, messageLength); // Straight save the packet
     // Unpack some character info
-    std::string station(message + 32);
-    std::string network(message + 39);
-    std::string channel(message + 48);
-    std::string location(message + 52); 
+    const std::string station(message + 32);
+    const std::string network(message + 39);
+    const std::string channel(message + 48);
+    const std::string location(message + 52); 
     result.setNetwork(network);
     result.setStation(station);
     result.setChannel(channel);
@@ -354,17 +359,17 @@ TraceBuf2 unpackEarthwormMessage(const char *message, const size_t messageLength
             if (nBytes == 2)
             {
                 auto x = ::unpack<int16_t, int16_t>(message + 64, nsamp, swapPass);
-                result.setData(x.data(), x.size());
+                result.setData(x.data(), static_cast<int> (x.size()));
             }
             else if (nBytes == 4)
             {
                 auto x = ::unpack<int32_t, int32_t>(message + 64, nsamp, swapPass);
-                result.setData(x.data(), x.size());
+                result.setData(x.data(), static_cast<int> (x.size()));
             }
             else if (nBytes == 8)
             {
                 auto x = ::unpack<int64_t, int64_t>(message + 64, nsamp, swapPass);
-                result.setData(x.data(), x.size());
+                result.setData(x.data(), static_cast<int> (x.size()));
             }
         }
         else if (dtype == 'f' && nBytes == 4)
@@ -372,12 +377,12 @@ TraceBuf2 unpackEarthwormMessage(const char *message, const size_t messageLength
             if (nBytes == 4)
             {
                 auto x = ::unpack<float, float>(message + 64, nsamp, swapPass);
-                result.setData(x.data(), x.size());
+                result.setData(x.data(), static_cast<int> (x.size()));
             }
             else if (nBytes == 8)
             {
                 auto x = ::unpack<double, double>(message + 64, nsamp, swapPass);
-                result.setData(x.data(), x.size());
+                result.setData(x.data(), static_cast<int> (x.size()));
             }
         }
         else
