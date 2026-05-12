@@ -1,7 +1,11 @@
-#include <iostream>
+//#include <iostream>
+#include <cstdint>
 #include <string>
 #include <algorithm>
+#include <memory>
 #include <numeric>
+#include <stdexcept>
+#include <utility>
 #include <vector>
 #include <chrono>
 #include <cmath>
@@ -95,8 +99,8 @@ public:
         {
             auto traceDuration
                 = std::round( ((nSamples - 1)/mSamplingRate)*1000000 );
-            auto iTraceDuration = static_cast<int64_t> (traceDuration);
-            std::chrono::microseconds traceDurationMuS{iTraceDuration};
+            const auto iTraceDuration = static_cast<int64_t> (traceDuration);
+            const std::chrono::microseconds traceDurationMuS{iTraceDuration};
             mEndTimeMicroSeconds = mStartTimeMicroSeconds + traceDurationMuS;
         }
     }
@@ -297,7 +301,7 @@ int Packet::getNumberOfSamples() const noexcept
 void Packet::setStartTime(const double startTime) noexcept
 {
     auto iStartTimeMuS = static_cast<int64_t> (std::round(startTime*1.e6));
-    std::chrono::microseconds startTimeMuS{iStartTimeMuS};
+    const std::chrono::microseconds startTimeMuS{iStartTimeMuS};
     setStartTime(startTimeMuS);
 }
 
