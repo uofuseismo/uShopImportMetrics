@@ -1,17 +1,25 @@
-#define _UNIX
-#include <iostream>
+#include <unistd.h>
 #include <chrono>
+#include <algorithm>
 #include <array>
+#include <atomic>
 #include <thread>
 #include <cstring>
+#include <cstdint>
 #include <string>
 #include <cstring>
+#include <exception>
+#include <functional>
+#include <future>
+#include <memory>
+#include <stdexcept>
+#include <utility>
 #include <vector>
 #ifndef NDEBUG
 #include <cassert>
 #endif
-#include <map>
 #include <spdlog/spdlog.h>
+#include <spdlog/logger.h>
 #undef WITH_MSEED
 #ifdef WITH_MSEED
 #include <libmseed.h>
@@ -19,6 +27,7 @@
 #ifdef WITH_EARTHWORM
 extern "C"
 {
+#define _UNIX
 #include <transport.h>
 #include <earthworm_simple_funcs.h>
 #include <trace_buf.h>
@@ -54,7 +63,7 @@ public:
                  std::shared_ptr<spdlog::logger> logger) :
         mOptions(options),
         mCallback(callback),
-        mLogger(logger)
+        mLogger(std::move(logger))
     {
     }
 
@@ -109,7 +118,6 @@ public:
         long gotSize{0};
         int returnCode{0};
         unsigned char sequenceNumber;
-        int nRead{0};
         while (mAcquire.load())
         {
             // Not really sure what to do with a kill signal
@@ -127,18 +135,15 @@ public:
             std::fill(msg.begin(), msg.end(), '\0');
             returnCode = tport_copyfrom(&mRegion,
                                         mLogos.data(),
-                                        mLogos.size(),
+                                        static_cast<short> (mLogos.size()),
                                         &gotLogo, &gotSize,
                                         msg.data(), MAX_TRACEBUF_SIZ,
                                         &sequenceNumber);
             // All scraped?
             if (returnCode == GET_NONE)
             {
-                if (nRead == 0)
-                {
-                    constexpr std::chrono::milliseconds timeOut{15};
-                    std::this_thread::sleep_for(timeOut);
-                }
+                constexpr std::chrono::milliseconds timeOut{15};
+                std::this_thread::sleep_for(timeOut);
                 continue;
             }
             else
@@ -189,7 +194,7 @@ public:
                 try
                 {
                     auto msgLength = static_cast<size_t> (gotSize);
-                    TraceBuf2 traceBuf2Message{msg.data(), msgLength};
+                    const TraceBuf2 traceBuf2Message{msg.data(), msgLength};
                     Packet packet{traceBuf2Message};
                     mCallback(std::move(packet));
                 }
@@ -373,7 +378,8 @@ public:
         logo.type = mHeartBeatType;
         SPDLOG_LOGGER_DEBUG(mLogger, "Writing status message {}", message);
         auto result = tport_putmsg(&mRegion, &logo,
-                                   message.size(), message.data());
+                                   static_cast<long> (message.size()),
+                                   message.data());
         if (result != PUT_OK)
         {   
             throw std::runtime_error("Failed to write heartbeat to ring");
@@ -397,7 +403,7 @@ public:
         {
             returnCode = tport_copyfrom(&mRegion,
                                         mLogos.data(),
-                                        mLogos.size(),
+                                        static_cast<short> (mLogos.size()),
                                         &gotLogo, &gotSize,
                                         msg.data(), MAX_TRACEBUF_SIZ,
                                         &sequenceNumber);
@@ -436,7 +442,8 @@ public:
                   output.end(),
                   '\0');
         auto result = tport_putmsg(&mRegion, &logo,
-                                   messageLength, output.data());
+                                   static_cast<long> (messageLength),
+                                   output.data());
         if (result != PUT_OK)
         {
             auto name = message.getNetwork() + "." 
@@ -494,7 +501,7 @@ WaveRing::WaveRing(
     const WaveRingOptions &options,
     const std::function<void (Packet &&)> &callback,
     std::shared_ptr<spdlog::logger> logger) :
-    pImpl(std::make_unique<WaveRingImpl> (options, callback, logger))
+    pImpl(std::make_unique<WaveRingImpl> (options, callback, std::move(logger)))
 {
 }
 
