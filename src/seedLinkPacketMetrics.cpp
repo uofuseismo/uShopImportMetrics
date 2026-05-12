@@ -184,11 +184,20 @@ struct ProgramOptions
                  = std::chrono::seconds {updateInterval};
             const auto otelAttributesDataSource
                  = propertyTree.get<std::string> (
-                      "OTelMetricsOptions.dataSourceAttributes",
+                      "OTelMetricsOptions.dataSourceAttribute",
                       "");
             if (!otelAttributesDataSource.empty())
             {
+                if (!otelAttributes.empty()){otelAttributes += ",";}
                 otelAttributes = "source=" + otelAttributesDataSource;
+            }
+            const auto otelAttributesDomain
+                = propertyTree.get<std::string> (
+                     "OTelMetricsOptions.domain", "");
+            if (!otelAttributesDomain.empty())
+            {
+                if (!otelAttributes.empty()){otelAttributes += ",";}
+                otelAttributes = otelAttributes + "domain=" + otelAttributesDomain;
             }
         }
  
@@ -322,7 +331,7 @@ public:
             validPacketsReceivedCounter
                 = meter->CreateInt64ObservableCounter(
                     "seedlink.import_packet_metrics.client.packets.valid",
-                    "Number of valid data packets received from SEEDLink client.",
+                    "Number of valid data packets received by SEEDLink client.",
                     "{packets}");
             validPacketsReceivedCounter->AddCallback(
                 ::observeValidPacketsReceived, nullptr);
@@ -330,47 +339,47 @@ public:
             futurePacketsReceivedCounter
                 = meter->CreateInt64ObservableCounter(
                    "seedlink.import_packet_metrics.client.packets.future",
-                   "Number of future packets received from SEEDLink client.",
+                   "Number of future packets received by SEEDLink client.",
                    "{packets}");
             futurePacketsReceivedCounter->AddCallback(
                 ::observeFuturePacketsReceived, nullptr);
             // Expired packets
             expiredPacketsReceivedCounter
                 = meter->CreateInt64ObservableCounter(
-                    "seedlink.import_packet_metrics.packets.expired",
-                    "Number of expired packets received from SEEDLink client.",
+                    "seedlink.import_packet_metrics.client.packets.expired",
+                    "Number of expired packets received by SEEDLink client.",
                     "{packets}");
             expiredPacketsReceivedCounter->AddCallback(
                 ::observeExpiredPacketsReceived, nullptr);
             // Total packets received
             totalPacketsReceivedCounter
                 = meter->CreateInt64ObservableCounter(
-                    "seedlink.import_packet_metrics.packets.all",
-                    "Total number of packets received from SEEDLink client.  This includes future and expired packets.",
+                    "seedlink.import_packet_metrics.client.packets.all",
+                    "Total number of packets received by SEEDLink client.  This includes future and expired packets.",
                     "{packets}");
             totalPacketsReceivedCounter->AddCallback(
                 ::observeTotalPacketsReceived, nullptr);
             // Windowed average latency
             windowedAverageLatencyGauge
                 = meter->CreateDoubleObservableGauge(
-                    "seedlink.import_packet_metrics.windowed.latency.average",
-                    "The windowed average latency of packets.",
+                    "seedlink.import_packet_metrics.client.windowed.latency.average",
+                    "The windowed average latency of packets received by SEEDLink client.",
                     "{s}");
             windowedAverageLatencyGauge->AddCallback(
                 ::observeWindowedAverageLatency, nullptr);
             // Windowed average counts
             windowedAverageCountsGauge
                 = meter->CreateDoubleObservableGauge(
-                    "seedlink.import_packet_metrics.windowed.counts.average",
-                    "The windowed average number of counts.",
+                    "seedlink.import_packet_metrics.client.windowed.counts.average",
+                    "The windowed average number of counts received by SEEDLink client.",
                     "{counts}");
             windowedAverageCountsGauge->AddCallback(
                 ::observeWindowedAverageCounts, nullptr);
             // Windowed std of counts
             windowedStdCountsGauge
                 = meter->CreateDoubleObservableGauge(
-                    "seedlink.import_packet_metrics.windowed.counts.standard_deviaton",
-                    "The windowed standard deviation of counts.",
+                    "seedlink.import_packet_metrics.client.windowed.counts.standard_deviaton",
+                    "The windowed standard deviation of counts of packets received by SEEDLink client.",
                     "{counts}");
             windowedStdCountsGauge->AddCallback(
                 ::observeWindowedStdCounts, nullptr);
@@ -435,6 +444,9 @@ public:
     {   
         auto &metrics
             = UShopImportMetrics::MetricsSingleton::getInstance();
+        auto lastUpdate
+            = std::chrono::duration_cast<std::chrono::microseconds>
+              ((std::chrono::high_resolution_clock::now()).time_since_epoch());
         while (mKeepRunning)
         {
             bool gotPacket{false};
@@ -454,6 +466,11 @@ public:
                 try
                 {
                     metrics.tabulateMetrics(packet);
+                    metrics.updateAndResetWindowedMetrics();
+                    lastUpdate
+                       = std::chrono::duration_cast<std::chrono::microseconds>
+                         ((std::chrono::high_resolution_clock::now())
+                           .time_since_epoch());
                 }
                 catch (const std::exception &e) 
                 {
@@ -465,6 +482,15 @@ public:
             else
             {
                 constexpr std::chrono::milliseconds timeOut{10};
+                const auto now
+                    = std::chrono::duration_cast<std::chrono::microseconds>
+                      ((std::chrono::high_resolution_clock::now())
+                        .time_since_epoch());
+                // If we keep missing we periodically want to flush information
+                if (now > lastUpdate + mOptions.windowedMetricsUpdateInterval)
+                {
+                    metrics.updateAndResetWindowedMetrics();
+                }
                 std::this_thread::sleep_for(timeOut);
             }
         }
@@ -672,13 +698,16 @@ int main(int argc, char *argv[])
             constexpr int overwrite{1};
             setenv("OTEL_RESOURCE_ATTRIBUTES",
                    options.otelAttributes.c_str(),
-                    overwrite);
+                   overwrite);
         }
     }
     if (options.exportMetrics)
     {   
         try
         {
+            SPDLOG_LOGGER_INFO(logger,
+                               "Configuring OTel to send metrics to {}",
+                               options.otelHTTPMetricsOptions.url);
             ::initializeOTelHTTP(options.otelHTTPMetricsOptions.url,
                                  options.otelHTTPMetricsOptions.exportInterval,
                                  options.otelHTTPMetricsOptions.exportTimeOut);
@@ -692,20 +721,18 @@ int main(int argc, char *argv[])
         }
     }   
 
-
-
     std::unique_ptr<Process> process{nullptr}; 
     try
     {
-        SPDLOG_LOGGER_INFO(logger, "Creating instance of process");
+        SPDLOG_LOGGER_INFO(logger, "Initializing main process class...");
         process = std::make_unique<Process> (options, logger);
     }
     catch (const std::exception &e)
     {
         ::cleanupOTelMetrics();
         SPDLOG_LOGGER_CRITICAL(logger,
-                               "Failed to initialized process because {}",
-                               std::string {e.what()});
+                          "Failed to initialized main process class because {}",
+                          std::string {e.what()});
         return EXIT_FAILURE;
     }
 

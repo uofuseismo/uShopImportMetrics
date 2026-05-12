@@ -1,5 +1,6 @@
 #ifndef OTEL_METRICS_HPP
 #define OTEL_METRICS_HPP
+#include <iostream>
 #include <chrono>
 #include <string>
 #include <opentelemetry/nostd/shared_ptr.h>
@@ -114,7 +115,7 @@ void observeValidPacketsReceived(
         > (observerResult);
         try
         {
-            auto &instance
+            const auto &instance
                 = UShopImportMetrics::MetricsSingleton::getInstance();
             auto map = instance.getReceivedPacketsCounters();
             for (const auto &item : map)
@@ -160,7 +161,7 @@ void observeFuturePacketsReceived(
         > (observerResult);
         try
         {
-            auto &instance
+            const auto &instance
                 = UShopImportMetrics::MetricsSingleton::getInstance();
             auto map = instance.getFuturePacketsCounters();
             for (const auto &item : map)
@@ -206,7 +207,7 @@ void observeExpiredPacketsReceived(
         > (observerResult);
         try
         {
-            auto &instance
+            const auto &instance
                 = UShopImportMetrics::MetricsSingleton::getInstance();
             auto map = instance.getExpiredPacketsCounters();
             for (const auto &item : map)
@@ -252,7 +253,7 @@ void observeTotalPacketsReceived(
         > (observerResult);
         try
         {
-            auto &instance
+            const auto &instance
                 = UShopImportMetrics::MetricsSingleton::getInstance();
             auto map = instance.getTotalPacketsCounters();
             for (const auto &item : map)
@@ -277,41 +278,6 @@ void observeTotalPacketsReceived(
     }
 }
 
-/*
-void observeTotalPacketsSent(
-    opentelemetry::metrics::ObserverResult observerResult,
-    void *)
-{
-    if (opentelemetry::nostd::holds_alternative
-        <
-            opentelemetry::nostd::shared_ptr
-            <
-                opentelemetry::metrics::ObserverResultT<int64_t>
-            >
-        > (observerResult))
-    {   
-        auto observer = opentelemetry::nostd::get
-        <
-            opentelemetry::nostd::shared_ptr
-            <
-               opentelemetry::metrics::ObserverResultT<int64_t>
-            >
-        > (observerResult);
-        try
-        {
-            auto &instance
-                = UShopImportMetrics::MetricsSingleton::getInstance();
-            auto value = instance.getSentPacketsCount();
-            observer->Observe(value);
-        }
-        catch (const std::exception &e) 
-        {
-
-        }
-    }   
-}
-*/
-
 void observeWindowedAverageLatency(
     opentelemetry::metrics::ObserverResult observerResult,
     void *)
@@ -333,7 +299,7 @@ void observeWindowedAverageLatency(
         > (observerResult);
         try
         {
-            auto &instance
+            const auto &instance
                 = UShopImportMetrics::MetricsSingleton::getInstance();
             auto map = instance.getWindowedAverageLatencies();
             for (const auto &item : map)

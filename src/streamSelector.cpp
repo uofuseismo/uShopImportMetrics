@@ -266,7 +266,7 @@ std::string StreamSelector::getSelector() const noexcept
 #ifndef NDEBUG
         assert(false);
 #else 
-        std::cerr << "Unhandled type" << std::endl;
+        throw std::invalid_argument("Unhandled type");
 #endif
         if (locationChannel.empty())
         {

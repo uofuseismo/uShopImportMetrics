@@ -1,3 +1,4 @@
+//#include <iostream>
 #include <algorithm>
 #include <atomic>
 #include <cctype>
@@ -262,6 +263,7 @@ void MetricsSingleton::updateAndResetWindowedMetrics()
     const auto now
         = std::chrono::duration_cast<std::chrono::microseconds>
           ((std::chrono::high_resolution_clock::now()).time_since_epoch());
+    {
     const std::lock_guard<std::mutex> lock(mMutex);
     for (auto &item : mWindowedMetricsMap)
     {
@@ -276,6 +278,7 @@ void MetricsSingleton::updateAndResetWindowedMetrics()
             mAverageCountsMap.insert_or_assign(item.first, averageCounts);
             mStdCountsMap.insert_or_assign(item.first, stdCounts);
         }
+    }
     }
 }
 

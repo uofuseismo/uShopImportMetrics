@@ -28,6 +28,7 @@
 #include <spdlog/logger.h>
 #include <spdlog/common.h>
 #include <spdlog/sinks/daily_file_sink.h>
+//NOLINTNEXTLINE(misc-include-cleaner)
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/parsers.hpp>
@@ -327,16 +328,16 @@ public:
             // Valid (good) packets
             validPacketsReceivedCounter
                 = meter->CreateInt64ObservableCounter(
-                    "earthworm.ring_packet_metrics.client.packets.valid",
-                    "Number of valid data packets received from SEEDLink client.",
+                    "earthworm.ring_packet_metrics.packets.valid",
+                    "Number of valid data packets read from Earthworm ring.",
                     "{packets}");
             validPacketsReceivedCounter->AddCallback(
                 ::observeValidPacketsReceived, nullptr);
             // Future packets
             futurePacketsReceivedCounter
                 = meter->CreateInt64ObservableCounter(
-                   "earthworm.ring_packet_metrics.client.packets.future",
-                   "Number of future packets received from SEEDLink client.",
+                   "earthworm.ring_packet_metrics.packets.future",
+                   "Number of future packets read from Earthworm ring.",
                    "{packets}");
             futurePacketsReceivedCounter->AddCallback(
                 ::observeFuturePacketsReceived, nullptr);
@@ -344,7 +345,7 @@ public:
             expiredPacketsReceivedCounter
                 = meter->CreateInt64ObservableCounter(
                     "earthworm.ring_packet_metrics.packets.expired",
-                    "Number of expired packets received from SEEDLink client.",
+                    "Number of expired packets read from Earthworm ring.",
                     "{packets}");
             expiredPacketsReceivedCounter->AddCallback(
                 ::observeExpiredPacketsReceived, nullptr);
@@ -352,7 +353,7 @@ public:
             totalPacketsReceivedCounter
                 = meter->CreateInt64ObservableCounter(
                     "earthworm.ring_packet_metrics.packets.all",
-                    "Total number of packets received from SEEDLink client.  This includes future and expired packets.",
+                    "Total number of packets read from Earthworm ring.  This includes future and expired packets.",
                     "{packets}");
             totalPacketsReceivedCounter->AddCallback(
                 ::observeTotalPacketsReceived, nullptr);
@@ -360,7 +361,7 @@ public:
             windowedAverageLatencyGauge
                 = meter->CreateDoubleObservableGauge(
                     "earthworm.ring_packet_metrics.windowed.latency.average",
-                    "The windowed average latency of packets.",
+                    "The windowed average latency of packets read from Earthworm ring.",
                     "{s}");
             windowedAverageLatencyGauge->AddCallback(
                 ::observeWindowedAverageLatency, nullptr);
@@ -368,7 +369,7 @@ public:
             windowedAverageCountsGauge
                 = meter->CreateDoubleObservableGauge(
                     "earthworm.ring_packet_metrics.windowed.counts.average",
-                    "The windowed average number of counts.",
+                    "The windowed average number of counts read from Earthworm ring.",
                     "{counts}");
             windowedAverageCountsGauge->AddCallback(
                 ::observeWindowedAverageCounts, nullptr);
@@ -376,7 +377,7 @@ public:
             windowedStdCountsGauge
                 = meter->CreateDoubleObservableGauge(
                     "earthworm.ring_packet_metrics.windowed.counts.standard_deviaton",
-                    "The windowed standard deviation of counts.",
+                    "The windowed standard deviation of counts read from Earthworm ring.",
                     "{counts}");
             windowedStdCountsGauge->AddCallback(
                 ::observeWindowedStdCounts, nullptr);
@@ -420,6 +421,9 @@ public:
     {
         auto &metrics
             = UShopImportMetrics::MetricsSingleton::getInstance();
+        auto lastUpdate
+            = std::chrono::duration_cast<std::chrono::microseconds>
+              ((std::chrono::high_resolution_clock::now()).time_since_epoch());
         while (mKeepRunning)
         {
             bool gotPacket{false};
@@ -439,6 +443,11 @@ public:
                 try
                 {
                     metrics.tabulateMetrics(packet);
+                    metrics.updateAndResetWindowedMetrics();
+                    lastUpdate
+                       = std::chrono::duration_cast<std::chrono::microseconds>
+                         ((std::chrono::high_resolution_clock::now())
+                           .time_since_epoch());
                 }
                 catch (const std::exception &e)
                 {
@@ -450,6 +459,15 @@ public:
             else
             {
                 constexpr std::chrono::milliseconds timeOut{10};
+                const auto now 
+                    = std::chrono::duration_cast<std::chrono::microseconds>
+                      ((std::chrono::high_resolution_clock::now())
+                        .time_since_epoch());
+                // If we keep missing we periodically want to flush information
+                if (now > lastUpdate + mOptions->windowedMetricsUpdateInterval)
+                {
+                    metrics.updateAndResetWindowedMetrics();
+                }
                 std::this_thread::sleep_for(timeOut);
             }
         }
