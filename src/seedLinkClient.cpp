@@ -1,10 +1,26 @@
+#include <cstddef>
 #include <chrono>
 #include <string>
 #include <array>
+#include <algorithm>
+#include <atomic>
 #include <cstdint>
+#include <cmath>
+#include <functional>
+#include <future>
+#include <exception>
+#include <memory>
+#include <stdexcept>
+#include <thread>
+#include <utility>
+#include <vector>
+#ifndef NDEBUG
+#include <cassert>
+#endif
 #include <libmseed.h>
 #include <libslink.h>
 #include <spdlog/spdlog.h>
+#include <spdlog/logger.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include "uShopImportMetrics/seedLinkClient.hpp"
 #include "uShopImportMetrics/seedLinkClientOptions.hpp"
@@ -21,7 +37,7 @@ namespace
 /// @brief Unpacks a miniSEED record.
 [[nodiscard]]
 std::vector<Packet>
-    miniSEEDToDataPackets(char *msRecord, const int bufferSize)
+    miniSEEDToDataPackets(char *msRecord, const uint32_t bufferSize)
 {
     std::vector<Packet> dataPackets;
     auto bufferLength = static_cast<uint64_t> (bufferSize);
@@ -83,7 +99,7 @@ std::vector<Packet>
             // Sampling rate
             dataPacket.setSamplingRate(miniSEEDRecord->samprate);
             // Start time
-            std::chrono::microseconds startTime
+            const std::chrono::microseconds startTime
             {
                 static_cast<int64_t>
                     (std::round(miniSEEDRecord->starttime)*1.e-3)
@@ -157,7 +173,9 @@ public:
     {
         if (mLogger == nullptr)
         {
+            //NOLINTBEGIN(misc-include-cleaner)
             mLogger = spdlog::stdout_color_mt("SEEDLinkConsole");
+            //NOLINTEND(misc-include-cleaner)
         }
         initialize(options);
     }        
@@ -291,7 +309,10 @@ public:
             {
                 auto network = selector.getNetwork();
                 auto station = selector.getStation();
-                auto stationID = network + "_" + station;
+                //auto stationID{network + "_" + station};
+                auto stationID{network};
+                stationID += "_";
+                stationID += station; 
                 auto streamSelector = selector.getSelector();
                 SPDLOG_LOGGER_INFO(mLogger, "Adding SEEDLink selector: {} {}",
                                    stationID, streamSelector);
@@ -302,10 +323,13 @@ public:
                                                 timeStamp);
                 if (returnCode != 0)
                 {
-                    throw std::runtime_error("Failed to add selector: "
-                                           + network + " "
-                                           + station + " "
-                                           + streamSelector);
+                    std::string errorMessage{"Failed to add selector: "};
+                    errorMessage += network;
+                    errorMessage += " ";
+                    errorMessage += station;
+                    errorMessage += " ";
+                    errorMessage += streamSelector;
+                    throw std::runtime_error(errorMessage);
                 }
             }
             catch (const std::exception &e)
