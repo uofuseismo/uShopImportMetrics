@@ -1,15 +1,23 @@
 #include <atomic>
 #include <csignal>
+#include <cstddef>
+#include <cstdlib>
+#include <cstdint>
 #include <chrono>
 #include <exception>
 #include <filesystem>
 #include <iostream>
 #include <string>
 #include <functional>
+#include <limits>
+#include <memory>
 #include <mutex>
+#include <optional>
+#include <queue>
 #include <stdexcept>
 #include <thread>
-#include <queue>
+#include <utility>
+#include <vector>
 #ifndef NDEBUG
 #include <cassert>
 #endif
@@ -17,10 +25,15 @@
 #include <spdlog/logger.h>
 #include <spdlog/sinks/daily_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
-#include <boost/program_options.hpp>
+#include <spdlog/common.h>
+#include <boost/program_options/options_description.hpp>
+#include <boost/program_options/parsers.hpp>
+#include <boost/program_options/variables_map.hpp>
+#include <boost/program_options/value_semantic.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/ini_parser.hpp>
-#include <boost/algorithm/string.hpp>
+#include <boost/algorithm/string/classification.hpp>
+#include <boost/algorithm/string/split.hpp>
 #include "uShopImportMetrics/version.hpp"
 #include "uShopImportMetrics/seedLinkClient.hpp"
 #include "uShopImportMetrics/seedLinkClientOptions.hpp"
@@ -50,13 +63,14 @@ struct OTelHTTPMetricsOptions
     std::string suffix{"/v1/metrics"};
 };
 
+//NOLINTNEXTLINE(misc-include-cleaner)
 std::string getOTelCollectorURL(boost::property_tree::ptree &propertyTree,
                                 const std::string &section)
 {
     std::string result;
-    std::string otelCollectorHost
+    const std::string otelCollectorHost
         = propertyTree.get<std::string> (section + ".host", "");
-    uint16_t otelCollectorPort
+    const uint16_t otelCollectorPort
         = propertyTree.get<uint16_t> (section + ".port", 4218);
     if (!otelCollectorHost.empty())
     {
@@ -96,12 +110,49 @@ struct ProgramOptions
                                              applicationName);
         if (applicationName.empty())
         {   
-            applicationName = "uEarthwormPacketMetrics";
+            applicationName = APPLICATION_NAME;
         }   
         verbosity
             = propertyTree.get<int> ("General.verbosity", verbosity);
+
+        // Metrics
+        otelHTTPMetricsOptions.url
+            = getOTelCollectorURL(propertyTree, "OTelHTTPMetricsOptions");
+        otelHTTPMetricsOptions.suffix
+            = propertyTree.get<std::string> ("OTelHTTPMetricsOptions.suffix",
+                                             "/v1/metrics");
+        if (!otelHTTPMetricsOptions.url.empty())
+        {
+            if (!otelHTTPMetricsOptions.suffix.empty())
+            {
+                if (!otelHTTPMetricsOptions.url.ends_with("/") &&
+                    !otelHTTPMetricsOptions.suffix.starts_with("/"))
+                {
+                    otelHTTPMetricsOptions.suffix = "/" 
+                                                + otelHTTPMetricsOptions.suffix;
+                }
+                otelHTTPMetricsOptions.url = otelHTTPMetricsOptions.url
+                                           + otelHTTPMetricsOptions.suffix;
+            }
+        }
+        if (!otelHTTPMetricsOptions.url.empty())
+        {
+            exportMetrics = true;
+            auto updateInterval
+                = static_cast<int> (windowedMetricsUpdateInterval.count());
+            updateInterval
+                = propertyTree.get<int> (
+                     "OTelTTPMetricsOptions.windowedMetricsUpdateIntervalInSeconds",
+                     updateInterval);
+            if (updateInterval <= 0)
+            {
+                throw std::invalid_argument("Metrics update interval must be non-negative");
+            }
+            windowedMetricsUpdateInterval
+                 = std::chrono::seconds {updateInterval};
+        }
  
-        // SEEDLink options
+        // SEEDLink client options
         auto slinkHost
             = propertyTree.get<std::string> ("SEEDLink.host");
         auto slinkPort
@@ -111,8 +162,8 @@ struct ProgramOptions
         constexpr int maxSelectors{std::numeric_limits<uint16_t>::max()};
         for (int iSelector = 1; iSelector <= maxSelectors; ++iSelector)
         {
-            std::string selectorName{"SEEDLink.data_selector_"
-                                    + std::to_string(iSelector)};
+            const std::string selectorName{"SEEDLink.data_selector_"
+                                         + std::to_string(iSelector)};
             auto selectorString
                 = propertyTree.get_optional<std::string> (selectorName);
             if (selectorString)
@@ -150,12 +201,14 @@ Allowed options)""");
                      "Defines the initialization file for this executable")
             ("version", "Displays the version number");
         boost::program_options::variables_map vm; 
+        //NOLINTBEGIN
         boost::program_options::store(
             boost::program_options::parse_command_line(argc, argv, desc), vm);
+        //NOLINTEND
         boost::program_options::notify(vm);
         if (vm.count("help"))
         {
-            std::cout << desc << std::endl;
+            std::cout << desc << "\n";
             return std::nullopt;
         }
         else if (vm.count("version"))
@@ -191,11 +244,12 @@ public:
         std::shared_ptr<spdlog::logger> logger
     ) :
         mOptions(options),
-        mLogger(logger)
+        mLogger(std::move(logger))
     {
         mMaximumQueueSize = mOptions.maximumQueueSize;
         if (mLogger == nullptr)
         {
+            //NOLINTNEXTLINE(misc-include-cleaner)
             mLogger = spdlog::stdout_color_mt("ProcessConsole");
         }
         mSEEDLinkClient
@@ -212,7 +266,7 @@ public:
     {
         int nPacketsSkipped{0};
         {
-        std::lock_guard<std::mutex> lock(mImportMutex);
+        const std::lock_guard<std::mutex> lock(mImportMutex);
         while (mPacketQueue.size() >= mMaximumQueueSize)
         {
             nPacketsSkipped = nPacketsSkipped + 1;
@@ -277,6 +331,7 @@ int main(int argc, char *argv[])
     }
     catch (const std::exception &e)
     {
+        //NOLINTNEXTLINE(misc-include-cleaner)
         auto logger = spdlog::stdout_color_st("Console");
         SPDLOG_LOGGER_CRITICAL(logger,
                                "Failed to launch because {}", 
@@ -302,6 +357,7 @@ int main(int argc, char *argv[])
     std::shared_ptr<spdlog::logger> logger{nullptr};
     if (options.consoleLog)
     {   
+        //NOLINTNEXTLINE(misc-include-cleaner)
         logger = spdlog::stdout_color_mt(options.applicationName + "-console");
     }   
     else

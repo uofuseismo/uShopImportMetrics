@@ -189,6 +189,7 @@ struct ProgramOptions
             windowedMetricsUpdateInterval
                  = std::chrono::seconds {updateInterval};
         }
+        // Make a ring name to use as the otel attribute
         std::transform(applicationName.begin(),
                        applicationName.end(),
                        applicationName.begin(), 
@@ -202,7 +203,7 @@ struct ProgramOptions
         }
         otelAttributes
             = propertyTree.get<std::string> (
-                 "OTelTTPMetricsOptions.resourceAttributes", otelAttributes);
+                 "OTelHTTPMetricsOptions.resourceAttributes", otelAttributes);
     }
 
     [[nodiscard]] static std::optional<std::filesystem::path>
