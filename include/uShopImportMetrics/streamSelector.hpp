@@ -80,7 +80,7 @@ public:
                      const std::string &locationCode,
                      const Type type = Type::Data);
     /// @result A string representation of the selector.
-    [[nodiscard]] std::string getSelector() const noexcept;
+    [[nodiscard]] std::string getSelector() const;
 
     /// @brief Creates a selector from a string like UU CWU HH? 01 D
     [[nodiscard]] static StreamSelector fromString(const std::string &streamSelector);

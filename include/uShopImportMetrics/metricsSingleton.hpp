@@ -56,9 +56,15 @@ public:
     [[nodiscard]] std::map<std::string, int64_t> getTotalPacketsCounters() const;
 
     /// @brief Increments the total number of received packets.
-    void incrementReceivedPacketsCounter();
+    void incrementCumulativeReceivedTotalPacketsCounter();
     /// @result The total number of received packets.
-    [[nodiscard]] int64_t getReceivedPacketsCount() const noexcept;
+    [[nodiscard]] int64_t getCumulativeReceivedTotalPacketsCount() const noexcept;
+
+    /// @brief Increments the total number of received packets.
+    void incrementCumulativeReceivedValidPacketsCounter();
+    /// @result The total number of received packets.
+    [[nodiscard]] int64_t getCumulativeReceivedValidPacketsCount() const noexcept;
+
 
 private:
     MetricsSingleton() = default;
@@ -72,7 +78,8 @@ private:
     std::map<std::string, double> mAverageCountsMap;
     std::map<std::string, double> mStdCountsMap;
     std::map<std::string, std::unique_ptr<WindowedMetrics>> mWindowedMetricsMap;
-    std::atomic<int64_t> mReceivedPacketsCounter{0};
+    std::atomic<int64_t> mCumulativeReceivedTotalPacketsCounter{0};
+    std::atomic<int64_t> mCumulativeReceivedValidPacketsCounter{0};
     std::chrono::seconds mUpdateInterval{UPDATE_INTERVAL_SECONDS};
     std::chrono::microseconds mMaximumLatency{std::chrono::days {MAXIMUM_LATENCY_DAYS}};
     std::chrono::microseconds mMaximumFutureTime{0};

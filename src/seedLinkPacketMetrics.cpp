@@ -46,6 +46,7 @@
 #include "uShopImportMetrics/seedLinkClientOptions.hpp"
 #include "uShopImportMetrics/streamSelector.hpp"
 #include "uShopImportMetrics/packet.hpp"
+//#include "uShopImportMetrics/streamIdentifier.hpp"
 #include "otelMetrics.hpp"
 
 #define APPLICATION_NAME "uSEEDLinkPacketMetrics"
@@ -96,7 +97,7 @@ struct ProgramOptions
     std::string applicationName{APPLICATION_NAME};
     std::string otelAttributes;
     std::chrono::seconds windowedMetricsUpdateInterval{120};
-    std::chrono::seconds printSummary{std::chrono::minutes {15}};
+    std::chrono::seconds printSummaryInterval{std::chrono::minutes {15}};
     int verbosity{3};
     size_t maximumQueueSize{4096};
     bool consoleLog{true};
@@ -123,6 +124,12 @@ struct ProgramOptions
         // Chatty-ness
         verbosity
             = propertyTree.get<int> ("General.verbosity", verbosity);
+
+        auto summaryInterval
+            = propertyTree.get<int> ("General.printSummaryIntervalInMinutes",
+                                     15);
+        printSummaryInterval = std::chrono::minutes (summaryInterval);
+
         // Log directory
         auto logDirectoryName
             = propertyTree.get_optional<std::string> ("General.logDirectory");
@@ -447,7 +454,7 @@ public:
         auto lastUpdate
             = std::chrono::duration_cast<std::chrono::microseconds>
               ((std::chrono::high_resolution_clock::now()).time_since_epoch());
-        while (mKeepRunning)
+        while (mKeepRunning.load())
         {
             bool gotPacket{false};
             Packet packet;
@@ -496,12 +503,38 @@ public:
         }
     }
 
+    void printSummary()
+    {
+        if (mOptions.printSummaryInterval.count() <= 0){return;}
+        auto now
+            = std::chrono::duration_cast<std::chrono::microseconds>
+              ((std::chrono::high_resolution_clock::now()).time_since_epoch());
+        if (now > mLastPrintSummary + mOptions.printSummaryInterval)
+        {   
+            mLastPrintSummary = now;
+            auto &metrics
+                = UShopImportMetrics::MetricsSingleton::MetricsSingleton
+                                                      ::getInstance();
+            auto totalPackets = metrics.getCumulativeReceivedTotalPacketsCount();
+            auto validPackets = metrics.getCumulativeReceivedValidPacketsCount(); 
+            auto nReportTotal = totalPackets - mTotalReceivedLastReport;
+            auto nReportValid = validPackets - mValidReceivedLastReport;
+            mTotalReceivedLastReport = totalPackets;
+            mValidReceivedLastReport = validPackets;
+            SPDLOG_LOGGER_INFO(mLogger,
+               "Received {} packets since last report of which {} are valid",
+               nReportTotal,
+               nReportValid);
+        }
+    }
+
     void handleMainThread()
     {
         SPDLOG_LOGGER_DEBUG(mLogger, "Main thread entering waiting loop");
         stdCatchSignals();
         while (!mStopRequested)
         {
+            printSummary();
             if (mInterrupted)
             {
                 SPDLOG_LOGGER_INFO(mLogger,
@@ -594,6 +627,11 @@ public:
         std::bind(&::Process::addPacketCallback, this,
                   std::placeholders::_1)
     };   
+    std::chrono::microseconds mLastPrintSummary
+    {   
+        std::chrono::duration_cast<std::chrono::microseconds>
+              ((std::chrono::high_resolution_clock::now()).time_since_epoch())
+    };  
     std::unique_ptr<SEEDLinkClient> mSEEDLinkClient{nullptr};
     std::queue<Packet> mPacketQueue;
     std::mutex mImportMutex;
@@ -603,6 +641,8 @@ public:
     std::future<void> mMetricsFuture;
     std::atomic<bool> mKeepRunning{true};
     size_t mMaximumQueueSize{4096};
+    int64_t mTotalReceivedLastReport{0};
+    int64_t mValidReceivedLastReport{0};
     bool mStopRequested{false};
 };
 

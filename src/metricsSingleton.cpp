@@ -205,6 +205,7 @@ void MetricsSingleton::tabulateMetrics(const UShopImportMetrics::Packet &packet)
 {
     const auto key = toKeyName(packet); // Throws
     // If it made it this far then we update the total packets received
+    incrementCumulativeReceivedTotalPacketsCounter();
     incrementTotalPacketsCounter(key);
     // Okay check the times
     const int nSamples = packet.getNumberOfSamples();
@@ -239,6 +240,7 @@ void MetricsSingleton::tabulateMetrics(const UShopImportMetrics::Packet &packet)
     const auto latency
         = std::max(std::chrono::microseconds {0},
                    now - std::chrono::microseconds{endTimeMicroSeconds} );
+    incrementCumulativeReceivedValidPacketsCounter();
     incrementReceivedPacketsCounter(key);
     {
     const std::lock_guard<std::mutex> lock(mMutex);
@@ -394,13 +396,25 @@ std::map<std::string, int64_t> MetricsSingleton::getTotalPacketsCounters() const
 }
 
 /// Received packets
-void MetricsSingleton::incrementReceivedPacketsCounter()
+void MetricsSingleton::incrementCumulativeReceivedTotalPacketsCounter()
 {
-    mReceivedPacketsCounter.fetch_add(1);
+    mCumulativeReceivedTotalPacketsCounter.fetch_add(1);
 }
 
-int64_t MetricsSingleton::getReceivedPacketsCount() const noexcept
+int64_t MetricsSingleton::getCumulativeReceivedTotalPacketsCount()
+    const noexcept
 {
-    return mReceivedPacketsCounter.load();
+    return mCumulativeReceivedTotalPacketsCounter.load();
+}
+
+void MetricsSingleton::incrementCumulativeReceivedValidPacketsCounter()
+{
+    mCumulativeReceivedValidPacketsCounter.fetch_add(1);
+}
+
+int64_t MetricsSingleton::getCumulativeReceivedValidPacketsCount()
+    const noexcept
+{
+    return mCumulativeReceivedValidPacketsCounter.load();
 }
 
