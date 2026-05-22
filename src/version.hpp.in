@@ -4,7 +4,7 @@
 #define uShopImportMetrics_MAJOR @uShopImportMetrics_VERSION_MAJOR@
 #define uShopImportMetrics_MINOR @uShopImportMetrics_VERSION_MINOR@
 #define uShopImportMetrics_PATCH @uShopImportMetrics_VERSION_PATCH@
-#define uShopImportMetrics_GITTAG "@uFilterPickerPickBroker_GITTAG@"
+#define uShopImportMetrics_GITTAG "@uShopImportMetrics_GITTAG@"
 #define uShopImportMetrics_VERSION "@PROJECT_VERSION@"
 namespace UShopImportMetrics
 {
