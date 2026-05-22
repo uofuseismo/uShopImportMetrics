@@ -712,6 +712,8 @@ int main(int argc, char *argv[])
     {
         logger->set_level(spdlog::level::warn);
     }
+    SPDLOG_LOGGER_INFO(logger, "Running program version {}",
+                        UShopImportMetrics::Version::getVersionWithTag());
 
     // Initialize metrics
     if (std::getenv("OTEL_SERVICE_NAME") == nullptr)
