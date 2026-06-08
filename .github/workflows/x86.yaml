@@ -1,0 +1,134 @@
+name: x86-64 Compile
+run-name: ${{ github.actor }} Compiling x86
+on:
+  push:
+    branches:
+    - main
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    name: Build on u24-x86
+    strategy:
+      fail-fast: false
+      matrix:
+        BUILD_TARGET: [Release]
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build prerequisites
+        env:
+          EW_HOME: /opt/earthworm
+          EW_VERSION: earthworm-v8.0b10
+          EW_INSTALLATION: INST_UTAH
+          EW_INSTALL_BITS: 64
+          EW_BITS: 64
+          EW_CPPCFLAGS: "-D_LINUX -Dlinux -D_INTEL -D_USE_SCHED -D_USE_PTHREADS -D_USE_TERMIOS -D_FILE_OFFSET_BITS=64 -I/opt/earthworm/earthworm-v8.0b10/include -I/usr/include -I/usr/include/tirpc" 
+          PLATFORM: LINUX
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++
+          sudo apt-get install -y gfortran
+          sudo apt-get install -y tar
+          sudo apt-get install -y wget
+          sudo apt-get install -y file
+          sudo apt-get install -y clang
+          sudo apt-get install -y clang-tidy
+          sudo apt-get install -y make
+          sudo apt-get install -y libcurl4-openssl-dev
+          sudo apt-get install -y cmake
+          sudo apt-get install -y ninja-build 
+          sudo apt-get install -y libboost-all-dev
+          sudo apt-get install -y libssl-dev
+          sudo apt-get install -y libtirpc-dev
+          sudo apt-get install -y sed
+          sudo mkdir -p /artifacts/
+          sudo mkdir -p /opt/earthworm
+          sudo mkdir -p /usr/local/lib
+          sudo mkdir -p /usr/local/include
+          wget -q https://github.com/EarthScope/libmseed/archive/refs/tags/v3.2.4.tar.gz
+          tar -xf v3.2.4.tar.gz
+          rm v3.2.4.tar.gz
+          cd libmseed-3.2.4
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DBUILD_STATIC_LIBS=ON -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX=/usr/local
+          cmake --build build
+          sudo cmake --install build
+          cd ..
+          rm -rf libmseed-3.2.4
+          wget -q https://github.com/EarthScope/libslink/archive/refs/tags/v4.2.0.tar.gz
+          tar -xf v4.2.0.tar.gz
+          rm v4.2.0.tar.gz
+          cd libslink-4.2.0
+          CC=clang make static
+          sudo cp libslink.a /usr/local/lib
+          sudo cp libslink.h /usr/local/include
+          cd ../
+          rm -rf libslink-4.2.0
+          wget -q https://github.com/gabime/spdlog/archive/refs/tags/v1.17.0.tar.gz
+          tar -xf v1.17.0.tar.gz
+          rm v1.17.0.tar.gz
+          cd spdlog-1.17.0
+          cmake -B build -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release -DSPDLOG_BUILD_SHARED=OFF -DCMAKE_INSTALL_PREFIX=/usr/local/
+          cmake --build build
+          sudo cmake --install build
+          cd ../
+          rm -rf spdlog-1.17.0
+          wget -q https://github.com/catchorg/Catch2/archive/refs/tags/v3.12.0.tar.gz
+          tar -xf v3.12.0.tar.gz
+          rm v3.12.0.tar.gz
+          cd Catch2-3.12.0/
+          cmake -B build -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+          sudo cmake --install build
+          cd ../
+          rm -r Catch2-3.12.0/
+          wget https://gitlab.com/seismic-software/earthworm/-/archive/v8.0b10/earthworm-v8.0b10.tar.gz
+          tar -xf earthworm-v8.0b10.tar.gz
+          rm earthworm-v8.0b10.tar.gz
+          sudo mv earthworm-v8.0b10 /opt/earthworm/
+          cd /opt/earthworm/earthworm-v8.0b10/src
+          export CC=gcc
+          export CXX=g++
+          export FC=gfortran
+          export PATH="${EW_HOME}/${EW_VERSION}/bin:${PATH}"
+          export WARNFLAGS="-Wall -Wextra -Wno-sign-compare -Wno-unused-parameter -Wno-unknown-pragmas -Wno-pragmas -Wformat -Wdeclaration-after-statement"
+          export CFLAGS="-g -pthread -fPIC ${WARNFLAGS}"
+          export CXXFLAGS="${CFLAGS}"
+          export FFLAGS="-O -g -Wuninitialized -Werror=line-truncation -ffpe-trap=invalid,zero,overflow -fbacktrace"
+          export CPPFLAGS="-D_LINUX -Dlinux -D_INTEL -D_USE_SCHED -D_USE_PTHREADS -D_USE_TERMIOS -D_FILE_OFFSET_BITS=64 -I${EW_HOME}/${EW_VERSION}/include -I/usr/include -I/usr/include/tirpc"
+          export LDADD="-ltirpc"
+          export GLOBALFLAGS="${CFLAGS} ${CPPFLAGS}"
+          make unix
+          cd
+          wget https://github.com/open-telemetry/opentelemetry-cpp/archive/refs/tags/v1.25.0.tar.gz
+          tar -xf v1.25.0.tar.gz
+          rm v1.25.0.tar.gz
+          cd opentelemetry-cpp-1.25.0
+          cmake -B build -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release -DWITH_PROMETHEUS=OFF -DWITH_BENCHMARK=OFF -DCMAKE_CXX_COMPILER=clang++ -DWITH_EXAMPLES=OFF -DWITH_ABI_VERSION_1=OFF -DWITH_ABI_VERSION_2=ON -DWITH_OTLP_HTTP=ON
+          cmake --build build -j 4
+          sudo cmake --install build
+          cd ../
+          rm -rf opentelemetry-cpp-1.25.0
+      - name: Build project     
+        env:
+          EW_HOME: /opt/earthworm
+          EW_VERSION: earthworm-v8.0b10
+          EW_LIBRARY_DIR: /opt/earthworm/earthworm-v8.0b10/lib
+          EW_INCLUDE_DIR: /opt/earthworm/earthworm-v8.0b10/include
+        run: |
+          mkdir -p /artifacts
+          pwd
+          ls /opt/earthworm/
+          cmake -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release -DBUILD_EW=ON -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic" 
+          cmake --build build
+          ctest --test-dir build
+          sudo cmake --install build
+          cd build
+          ls
+          sudo cpack -B artifacts TGZ
+          ls artifacts
+          sudo mv artifacts/*gz /artifacts/
+      - name: Save artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: x86-build
+          path: /artifacts/    
+          retention-days: 90       
